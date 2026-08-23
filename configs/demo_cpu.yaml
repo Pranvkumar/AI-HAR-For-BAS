@@ -1,0 +1,8 @@
+protocol_path: configs/protocol.yaml
+hardware_path: configs/hardware.yaml
+video_source: 0
+model_path: yolo11n.pt
+telemetry_path: logs/demo_events.jsonl
+video_path: outputs/demo_session.mp4
+stream_host: 127.0.0.1
+stream_port: 8000

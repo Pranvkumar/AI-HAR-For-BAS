@@ -21,3 +21,7 @@ pytest
 Tests use synthetic events and do not download weights or require a camera.
 Provide a trained `.pt` or TensorRT `.engine` path when using
 `har.vision.yolo_wrapper.YoloDetector` in a live environment.
+
+For a CPU smoke run with the COCO-pretrained YOLO11n placeholder, download
+`yolo11n.pt` at build time, then use `configs/demo_cpu.yaml`. Replace that
+path with the BAS-trained weights for the real experiment.
