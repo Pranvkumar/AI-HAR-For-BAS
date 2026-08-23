@@ -59,6 +59,23 @@ This writes `recordings/bytetrack/tracked.mp4` with object IDs. A stock model
 validates tracking only; it cannot recognize the project-specific vial, pipette,
 rack, centrifuge slot, or lid until the custom model is trained.
 
+## Hand gesture recognition
+
+For robust, detailed hand input, this project also supports MediaPipe Gesture
+Recognizer alongside YOLO/ByteTrack. It recognizes `Closed_Fist`, `Open_Palm`,
+`Pointing_Up`, `Thumb_Down`, `Thumb_Up`, `Victory`, and `ILoveYou`, and provides
+21 landmarks per hand. Download its official model once during setup:
+
+```bash
+python -m pip install mediapipe
+python scripts/download_gesture_model.py
+python scripts/run_gesture_demo.py --source 0
+```
+
+The downloaded model is kept out of Git and inference runs locally afterwards.
+Use the landmark information for grasp/contact logic; reserve gesture labels for
+clear deliberate actions such as confirmation or stop signals.
+
 ## Training preparation
 
 The mock procedure's six classes and an Ultralytics `data.yaml` are ready in

@@ -21,6 +21,7 @@ dist/
 *.egg-info/
 
 # Model artefacts
+models/
 *.pt
 *.engine
 *.onnx
