@@ -7,7 +7,7 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
-test-artifacts/
+test-artifacts*/
 
 # Environments and tooling
 .venv/
