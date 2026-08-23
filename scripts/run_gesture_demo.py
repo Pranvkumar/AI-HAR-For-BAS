@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
+
+# Allow this shareable script to run directly from a source checkout.
+PROJECT_SOURCE = Path(__file__).resolve().parents[1] / "src"
+sys.path.insert(0, str(PROJECT_SOURCE))
 
 from har.vision.gesture_recognizer import HandGestureRecognizer
 
