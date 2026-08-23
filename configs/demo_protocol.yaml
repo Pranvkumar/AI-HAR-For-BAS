@@ -1,0 +1,20 @@
+# Synthetic local demonstration only — not an approved astronaut procedure.
+debounce_frames: 3
+pending_window_s: 1.0
+lookback_window_s: 2.0
+steps:
+  - id: secure_sample
+    name: Secure sample container
+    expects: [sample_container:grasp]
+    timeout_s: 20
+    safety_critical: true
+  - id: prepare_tool
+    name: Prepare instrument
+    expects: [instrument:grasp]
+    timeout_s: 20
+    safety_critical: false
+  - id: record_observation
+    name: Record observation
+    expects: [observation_card:grasp]
+    timeout_s: 20
+    safety_critical: false

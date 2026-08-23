@@ -1,0 +1,4 @@
+# Hardware configuration placeholder. Populate for the target camera and accelerator.
+camera: {}
+inference: {}
+encoding: {}

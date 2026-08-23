@@ -1,0 +1,14 @@
+# Application configuration. Supply a local model path and local camera/video source.
+protocol_path: configs/protocol.yaml
+pipeline:
+  source: 0
+  model_path: models/exported/best.engine
+  backend: tensorrt
+  adaptive_frame_skip: 1
+  fps: 30
+outputs:
+  logs_dir: logs
+  video_path: recordings/har.mp4
+  stream_port: 8000
+tts:
+  backend: pyttsx3

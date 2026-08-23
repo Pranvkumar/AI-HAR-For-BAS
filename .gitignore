@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+test-artifacts/
+
+# Environments and tooling
+.venv/
+venv/
+env/
+.env
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Model artefacts
+*.pt
+*.engine
+*.onnx
+
+# Runtime output
+logs/
+recordings/
+demo-output/
+*.mp4
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
