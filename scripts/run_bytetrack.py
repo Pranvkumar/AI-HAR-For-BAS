@@ -14,6 +14,7 @@ def main() -> None:
     parser.add_argument("--source", required=True, help="Camera number or local image/video path")
     parser.add_argument("--output", type=Path, default=Path("recordings/bytetrack"))
     parser.add_argument("--tracker", default="bytetrack.yaml", choices=("bytetrack.yaml", "botsort.yaml"))
+    parser.add_argument("--no-preview", action="store_true", help="Record without opening a preview window")
     args = parser.parse_args()
     if not args.model.is_file():
         parser.error(f"Model does not exist: {args.model}")
@@ -39,11 +40,19 @@ def main() -> None:
                 height, width = annotated.shape[:2]
                 writer = cv2.VideoWriter(str(args.output / "tracked.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), 30, (width, height))
             writer.write(annotated)
+            if not args.no_preview:
+                cv2.imshow("HAR ByteTrack — press Q to stop", annotated)
+                if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
+                    break
             frame_index += 1
+    except KeyboardInterrupt:
+        print("Tracking stopped.")
     finally:
         capture.release()
         if writer:
             writer.release()
+        if not args.no_preview:
+            cv2.destroyAllWindows()
     print(f"Tracked {frame_index} frames. Output: {args.output / 'tracked.mp4'}")
 
 
