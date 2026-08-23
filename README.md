@@ -46,6 +46,19 @@ This creates `demo-output/har-demo.mp4` and a JSONL telemetry file using a clear
 labelled synthetic protocol. It is a technical demonstration only, not an approved
 astronaut procedure.
 
+## ByteTrack smoke test
+
+The vision layer uses Ultralytics' built-in ByteTrack support. Test it with a
+local stock YOLO model and a local video file:
+
+```bash
+python scripts/run_bytetrack.py --model path/to/yolo11n.pt --source path/to/video.mp4
+```
+
+This writes `recordings/bytetrack/tracked.mp4` with object IDs. A stock model
+validates tracking only; it cannot recognize the project-specific vial, pipette,
+rack, centrifuge slot, or lid until the custom model is trained.
+
 ## Training preparation
 
 The mock procedure's six classes and an Ultralytics `data.yaml` are ready in
