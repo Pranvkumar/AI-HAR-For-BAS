@@ -1,6 +1,7 @@
 """Visualize full-rotation augmentation for a sample image."""
 
 import argparse
+import importlib
 from pathlib import Path
 
 
@@ -9,7 +10,7 @@ def main() -> None:
     parser.add_argument("image", type=Path)
     parser.add_argument("--output", type=Path, default=Path("rotation_check.jpg"))
     args = parser.parse_args()
-    import cv2
+    cv2 = importlib.import_module("cv2")
 
     image = cv2.imread(str(args.image))
     if image is None:
