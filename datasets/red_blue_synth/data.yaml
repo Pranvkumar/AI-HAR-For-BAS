@@ -1,0 +1,10 @@
+path: datasets/red_blue_synth
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: main_container
+  1: container_lid
+  2: red_box
+  3: blue_box
+  4: astronaut_hand

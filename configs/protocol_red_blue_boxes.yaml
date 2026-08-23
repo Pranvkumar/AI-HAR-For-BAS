@@ -1,0 +1,43 @@
+debounce_frames: 3
+pending_window_s: 2.0
+lookback_window_s: 5.0
+steps:
+  - id: 1
+    name: Open Main Container
+    expects:
+      object: container_lid
+      state: contact
+    timeout_s: 20
+    safety_critical: false
+    watch_objects:
+      - red_box
+      - blue_box
+    violation_message: "Warning: State mismatch. Please ensure the main container is fully open."
+  - id: 2
+    name: Extract Red Boxes
+    expects:
+      object: red_box_pair
+      state: contact
+    timeout_s: 45
+    safety_critical: false
+    watch_objects:
+      - blue_box
+      - blue_box_stack
+    violation_message: "Warning: Sequence violation. Please extract and place both red boxes first."
+  - id: 3
+    name: Extract and Stack Blue Boxes
+    expects:
+      object: blue_box_stack
+      state: contact
+    timeout_s: 45
+    safety_critical: true
+    watch_objects:
+      - blue_box
+    violation_message: "Warning: Spatial error. The blue box must be stacked directly on top of the red box."
+  - id: 4
+    name: Close Main Container
+    expects:
+      object: container_lid
+      state: contact
+    timeout_s: 20
+    safety_critical: false

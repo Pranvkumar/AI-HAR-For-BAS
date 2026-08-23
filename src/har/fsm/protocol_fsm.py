@@ -24,6 +24,7 @@ class ViolationEvent:
     message: str
     safety_critical: bool
     blocked: bool
+    short_message: str = ""
 
 
 class ProtocolFSM:
@@ -34,6 +35,24 @@ class ProtocolFSM:
         self.state = "PENDING_CONFIRMATION"
         self.history: deque[InteractionEvent] = deque()
         self.completed: list[int | str] = []
+
+    def _violation(
+        self,
+        step: ProtocolStep,
+        event: InteractionEvent,
+        fallback: str,
+        *,
+        blocked: bool,
+    ) -> ViolationEvent:
+        message = step.violation_message or fallback
+        return ViolationEvent(
+            step.id,
+            event.timestamp,
+            message,
+            message,
+            step.safety_critical,
+            blocked,
+        )
 
     @property
     def current_step(self) -> ProtocolStep | None:
@@ -82,6 +101,18 @@ class ProtocolFSM:
             if self.pending_count >= self.protocol.debounce_frames:
                 return [self._advance(event, step)]
             return []
+
+        if step.watch_objects and event.object in step.watch_objects:
+            self.pending_count = 0
+            return [
+                self._violation(
+                    step,
+                    event,
+                    f"Unexpected action while waiting for step {step.id}",
+                    blocked=False,
+                )
+            ]
+
         self.pending_count = 0
         later_index = next(
             (
@@ -109,22 +140,20 @@ class ProtocolFSM:
             if step.safety_critical:
                 self.state = "BLOCKED"
                 return [
-                    ViolationEvent(
-                        step.id,
-                        event.timestamp,
+                    self._violation(
+                        step,
+                        event,
                         f"Safety-critical step {step.id} was not confirmed",
-                        True,
-                        True,
+                        blocked=True,
                     )
                 ]
             self.index = later_index
             self.pending_count = 0
-            violation = ViolationEvent(
-                step.id,
-                event.timestamp,
+            violation = self._violation(
+                step,
+                event,
                 f"Step {step.id} was not confirmed; continuing",
-                False,
-                False,
+                blocked=False,
             )
             return [violation, self._advance(event, self.current_step)]
         return []

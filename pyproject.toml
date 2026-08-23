@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 # Exact pins should be finalized after Phase 1 model export testing.
 dependencies = [
   "ultralytics>=8.3,<9",
+  "lap>=0.5.12",
   "mediapipe>=0.10,<0.11",
   "protobuf>=4.25,<5",
   "transitions>=0.9,<1",

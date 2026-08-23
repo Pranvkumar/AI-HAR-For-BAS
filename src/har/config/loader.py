@@ -14,6 +14,8 @@ class ProtocolStep:
     expects: dict[str, Any]
     timeout_s: float
     safety_critical: bool = False
+    watch_objects: tuple[str, ...] = field(default_factory=tuple)
+    violation_message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,8 @@ def load_protocol(path: str | Path) -> ProtocolConfig:
                 expects=dict(item["expects"]),
                 timeout_s=float(item["timeout_s"]),
                 safety_critical=bool(item.get("safety_critical", False)),
+                watch_objects=tuple(str(value) for value in item.get("watch_objects", [])),
+                violation_message=(str(item["violation_message"]) if item.get("violation_message") else None),
             )
         )
     if not steps:
