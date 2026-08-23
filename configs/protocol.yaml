@@ -1,0 +1,18 @@
+debounce_frames: 3
+pending_window_s: 2.0
+lookback_window_s: 5.0
+steps:
+  - id: 1
+    name: Retrieve sample vial
+    expects:
+      object: vial_A
+      state: grasp_start
+    timeout_s: 30
+    safety_critical: false
+  - id: 2
+    name: Attach vial to centrifuge
+    expects:
+      object: centrifuge_slot
+      state: contact
+    timeout_s: 45
+    safety_critical: true
