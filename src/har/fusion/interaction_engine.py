@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 
 from har.events import Detection, HandState, InteractionEvent
+from har.vision.gesture_recognizer import RecognizedGesture
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class InteractionConfig:
     grasp_distance: float = 0.08
     min_overlap: float = 0.01
     timestamp_tolerance_s: float = 0.08
+    gesture_grasp_confidence: float = 0.75
 
 
 class InteractionEngine:
@@ -39,17 +41,31 @@ class InteractionEngine:
         union = area_a + area_b - intersection
         return intersection / union if union else 0.0
 
-    def process(self, hands: HandState, detections: list[Detection], frame_size: tuple[int, int]) -> list[InteractionEvent]:
+    def process(
+        self,
+        hands: HandState,
+        detections: list[Detection],
+        frame_size: tuple[int, int],
+        gestures: list[RecognizedGesture] | None = None,
+    ) -> list[InteractionEvent]:
         """Emit events only when a hand-object interaction state changes."""
 
         width, height = frame_size
         events: list[InteractionEvent] = []
+        gesture_by_hand = {item.handedness.lower(): item for item in gestures or []}
         for hand_name, landmarks in hands.hands.items():
             if len(landmarks) <= 8:
                 continue
             hand_box = self._hand_box(landmarks, width, height)
             grasp_distance = math.hypot(landmarks[4].x - landmarks[8].x, landmarks[4].y - landmarks[8].y)
-            grasped = grasp_distance <= self.config.grasp_distance
+            landmark_grasped = grasp_distance <= self.config.grasp_distance
+            gesture = gesture_by_hand.get(hand_name)
+            gesture_grasped = bool(
+                gesture
+                and gesture.name == "Closed_Fist"
+                and gesture.confidence >= self.config.gesture_grasp_confidence
+            )
+            grasped = landmark_grasped or gesture_grasped
             for detection in detections:
                 overlap = self._iou(hand_box, detection.xyxy)
                 interaction = "grasp" if grasped and overlap >= self.config.min_overlap else "contact" if overlap >= self.config.min_overlap else "none"

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from har.events import HandLandmark, HandState
 
 @dataclass(frozen=True)
 class RecognizedGesture:
@@ -42,8 +43,10 @@ class HandGestureRecognizer:
         self._mp = mp
         self._recognizer = vision.GestureRecognizer.create_from_options(options)
 
-    def recognize(self, frame: Any, timestamp_ms: int) -> list[RecognizedGesture]:
-        """Recognize built-in gestures in a BGR OpenCV frame."""
+    def track_and_recognize(
+        self, frame: Any, timestamp_ms: int
+    ) -> tuple[HandState, list[RecognizedGesture]]:
+        """Return normalized hand landmarks and recognized gestures from one frame."""
 
         import cv2
 
@@ -51,12 +54,24 @@ class HandGestureRecognizer:
         image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
         result = self._recognizer.recognize_for_video(image, timestamp_ms)
         gestures: list[RecognizedGesture] = []
-        for hand_index, categories in enumerate(result.gestures):
-            if not categories:
-                continue
-            category = categories[0]
+        hands: dict[str, tuple[HandLandmark, ...]] = {"left": (), "right": ()}
+        for hand_index, hand_landmarks in enumerate(result.hand_landmarks):
             hand = result.handedness[hand_index][0].category_name if result.handedness[hand_index] else "Unknown"
-            gestures.append(RecognizedGesture(hand, category.category_name, float(category.score)))
+            hand_key = hand.lower()
+            if hand_key in hands:
+                hands[hand_key] = tuple(
+                    HandLandmark(point.x, point.y, point.z) for point in hand_landmarks
+                )
+            categories = result.gestures[hand_index] if hand_index < len(result.gestures) else ()
+            if categories:
+                category = categories[0]
+                gestures.append(RecognizedGesture(hand, category.category_name, float(category.score)))
+        return HandState(timestamp_ms / 1000.0, hands), gestures
+
+    def recognize(self, frame: Any, timestamp_ms: int) -> list[RecognizedGesture]:
+        """Recognize built-in gestures in a BGR OpenCV frame."""
+
+        _, gestures = self.track_and_recognize(frame, timestamp_ms)
         return gestures
 
     def close(self) -> None:

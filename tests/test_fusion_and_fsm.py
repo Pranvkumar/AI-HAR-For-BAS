@@ -5,6 +5,9 @@ from __future__ import annotations
 from har.config.models import ProtocolConfig
 from har.events import InteractionEvent, ViolationEvent
 from har.fsm.protocol_fsm import ProtocolFSM
+from har.fusion.interaction_engine import InteractionEngine
+from har.events import Detection, HandLandmark, HandState
+from har.vision.gesture_recognizer import RecognizedGesture
 
 
 def event(time_s: float, evidence: str) -> InteractionEvent:
@@ -52,3 +55,17 @@ def test_retroactive_lookahead_backfills_middle_step() -> None:
     fsm.handle(event(0.2, "c:grasp"))
     fsm.handle(event(0.3, "d:grasp"))
     assert fsm.current_step == "COMPLETE"
+
+
+def test_closed_fist_gesture_reinforces_hand_object_grasp() -> None:
+    landmarks = tuple(HandLandmark(0.1, 0.1) for _ in range(21))
+    landmarks = landmarks[:4] + (HandLandmark(0.1, 0.1),) + landmarks[5:8] + (HandLandmark(0.9, 0.9),) + landmarks[9:]
+    hand_state = HandState(1.0, {"left": landmarks, "right": ()})
+    events = InteractionEngine().process(
+        hand_state,
+        [Detection("sample_vial", 0.9, (0, 0, 100, 100), 1)],
+        (100, 100),
+        [RecognizedGesture("Left", "Closed_Fist", 0.95)],
+    )
+    assert events[0].grasped
+    assert events[0].interaction == "grasp"

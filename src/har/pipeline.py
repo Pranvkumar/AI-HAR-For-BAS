@@ -17,7 +17,7 @@ from har.outputs.stream import AnnotatedFrameHub, create_app
 from har.outputs.telemetry import TelemetryLogger
 from har.outputs.tts import TTSWorker
 from har.outputs.video import VideoRecorder
-from har.vision.mediapipe_wrapper import HandTracker
+from har.vision.gesture_recognizer import HandGestureRecognizer
 from har.vision.yolo_wrapper import YoloDetector
 
 LOGGER = logging.getLogger(__name__)
@@ -52,10 +52,14 @@ def run(config_path: str, source_override: str | None = None) -> None:
         tts.publish(event)
 
     fsm = ProtocolFSM(protocol, publish)
+    gesture_settings = pipeline.get("gestures", {})
     interactions = InteractionEngine()
     protocol_evidence = ProtocolEvidenceEngine()
     detector = YoloDetector(pipeline["model_path"], backend=pipeline.get("backend", "tensorrt"), frame_skip=int(pipeline.get("adaptive_frame_skip", 1)))
-    hands = HandTracker()
+    gestures = HandGestureRecognizer(
+        gesture_settings.get("model_path", "models/gesture_recognizer.task"),
+        num_hands=int(gesture_settings.get("num_hands", 2)),
+    )
     hub = AnnotatedFrameHub()
     recorder: VideoRecorder | None = None
     capture = FrameCapture(int(source) if str(source).isdigit() else source, raw_frames, stop_event)
@@ -69,14 +73,16 @@ def run(config_path: str, source_override: str | None = None) -> None:
             except queue.Empty:
                 continue
             detections = detector.detect(packet.frame)
-            hand_state = hands.track(packet.frame)
+            hand_state, recognized_gestures = gestures.track_and_recognize(
+                packet.frame, int(packet.timestamp_s * 1000)
+            )
             height, width = packet.frame.shape[:2]
-            hand_events = interactions.process(hand_state, detections, (width, height))
+            hand_events = interactions.process(hand_state, detections, (width, height), recognized_gestures)
             for interaction in hand_events + protocol_evidence.process(detections, hand_events, packet.timestamp_s):
                 fsm.handle(interaction)
             if recorder is None:
                 recorder = VideoRecorder(app_config.outputs.get("video_path", "recordings/har.mp4"), float(pipeline.get("fps", 30)), (width, height), hub)
-            recorder.write(packet.frame, detections, fsm.current_step)
+            recorder.write(packet.frame, detections, fsm.current_step, recognized_gestures)
     except KeyboardInterrupt:
         LOGGER.info("Pipeline stopped by user")
     finally:
@@ -84,7 +90,7 @@ def run(config_path: str, source_override: str | None = None) -> None:
         capture.join(2.0)
         if recorder:
             recorder.close()
-        hands.close()
+        gestures.close()
         tts.close()
         telemetry.close()
 

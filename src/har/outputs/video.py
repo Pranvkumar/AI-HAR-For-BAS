@@ -23,7 +23,7 @@ class VideoRecorder:
         self.writer = cv2.VideoWriter(str(output_path), fourcc, fps, frame_size)
         LOGGER.warning("Using cv2.VideoWriter fallback; provision NVENC/FFmpeg for accelerated encoding.")
 
-    def annotate(self, frame: Any, detections: list[Detection], state: str) -> Any:
+    def annotate(self, frame: Any, detections: list[Detection], state: str, gestures: list[Any] | None = None) -> Any:
         """Draw tracking and protocol annotations exactly once."""
 
         annotated = frame.copy()
@@ -32,12 +32,22 @@ class VideoRecorder:
             self.cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 220, 0), 2)
             self.cv2.putText(annotated, f"{item.cls} {item.conf:.2f} #{item.track_id}", (x1, max(20, y1 - 8)), self.cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 220, 0), 1)
         self.cv2.putText(annotated, f"Step: {state}", (12, 28), self.cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+        for index, gesture in enumerate(gestures or []):
+            self.cv2.putText(
+                annotated,
+                f"{gesture.handedness}: {gesture.name} ({gesture.confidence:.0%})",
+                (12, 58 + index * 24),
+                self.cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 0),
+                2,
+            )
         return annotated
 
-    def write(self, frame: Any, detections: list[Detection], state: str) -> None:
+    def write(self, frame: Any, detections: list[Detection], state: str, gestures: list[Any] | None = None) -> None:
         """Write and share the same annotated frame."""
 
-        annotated = self.annotate(frame, detections, state)
+        annotated = self.annotate(frame, detections, state, gestures)
         self.writer.write(annotated)
         self.frame_hub.publish(annotated)
 

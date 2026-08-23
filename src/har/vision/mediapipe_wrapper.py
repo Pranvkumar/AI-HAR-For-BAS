@@ -1,51 +1,33 @@
-"""CPU-only MediaPipe Holistic wrapper for per-hand landmarks."""
+"""CPU-only current MediaPipe hand-landmark wrapper."""
 
 from __future__ import annotations
 
-import os
 import time
+from pathlib import Path
 from typing import Any
 
-from har.events import HandLandmark, HandState
+from har.events import HandState
+from har.vision.gesture_recognizer import HandGestureRecognizer, RecognizedGesture
 
 
 class HandTracker:
-    """Extract normalized hand landmarks using MediaPipe's CPU implementation."""
+    """Extract current MediaPipe task hand landmarks on CPU."""
 
-    def __init__(self) -> None:
-        os.environ.setdefault("MEDIAPIPE_DISABLE_GPU", "1")
-        try:
-            import mediapipe as mp
-        except ImportError as error:
-            raise RuntimeError("Install MediaPipe before creating HandTracker.") from error
-        self._cv2 = __import__("cv2")
-        self._holistic = mp.solutions.holistic.Holistic(
-            static_image_mode=False,
-            model_complexity=1,
-            smooth_landmarks=True,
-            refine_face_landmarks=False,
-        )
-
-    @staticmethod
-    def _convert(landmarks: Any) -> tuple[HandLandmark, ...]:
-        if landmarks is None:
-            return ()
-        return tuple(HandLandmark(point.x, point.y, point.z) for point in landmarks.landmark)
+    def __init__(self, model_path: str | Path = "models/gesture_recognizer.task") -> None:
+        self._recognizer = HandGestureRecognizer(model_path)
 
     def track(self, frame: Any) -> HandState:
         """Return landmarks for the frame; no GPU delegate is used."""
 
-        rgb = self._cv2.cvtColor(frame, self._cv2.COLOR_BGR2RGB)
-        result = self._holistic.process(rgb)
-        return HandState(
-            timestamp_s=time.monotonic(),
-            hands={
-                "left": self._convert(result.left_hand_landmarks),
-                "right": self._convert(result.right_hand_landmarks),
-            },
-        )
+        hand_state, _ = self._recognizer.track_and_recognize(frame, int(time.monotonic() * 1000))
+        return hand_state
+
+    def track_with_gestures(self, frame: Any, timestamp_ms: int) -> tuple[HandState, list[RecognizedGesture]]:
+        """Return hand landmarks plus optional built-in gesture classifications."""
+
+        return self._recognizer.track_and_recognize(frame, timestamp_ms)
 
     def close(self) -> None:
         """Release MediaPipe CPU resources."""
 
-        self._holistic.close()
+        self._recognizer.close()
