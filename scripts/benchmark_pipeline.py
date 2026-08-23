@@ -17,7 +17,15 @@ def main() -> None:
         time.sleep(args.seconds)
     finally:
         pipeline.stop()
-    print(f"elapsed_seconds={time.monotonic() - started:.2f}")
+    elapsed = time.monotonic() - started
+    print(f"elapsed_seconds={elapsed:.2f}")
+    frames = pipeline.metrics.get("frames", {}).get("count", 0)
+    print(f"overall_fps={frames / elapsed:.2f}" if elapsed else "overall_fps=0.00")
+    for stage, metric in sorted(pipeline.metrics.items()):
+        if stage == "frames":
+            continue
+        average_ms = metric["seconds"] / metric["count"] * 1000 if metric["count"] else 0
+        print(f"{stage}: count={int(metric['count'])} avg_ms={average_ms:.2f}")
     print("Run `nvidia-smi dmon` alongside this command to inspect GPU/NVENC load.")
 
 

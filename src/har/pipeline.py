@@ -5,6 +5,7 @@ import argparse
 import importlib
 import queue
 import threading
+import time
 from typing import Any
 
 import yaml
@@ -53,6 +54,12 @@ class HARPipeline:
         self.stop_event = threading.Event()
         self.threads: list[threading.Thread] = []
         self.server: Any = None
+        self.metrics: dict[str, dict[str, float]] = {}
+
+    def _record(self, stage: str, elapsed: float) -> None:
+        metric = self.metrics.setdefault(stage, {"count": 0.0, "seconds": 0.0})
+        metric["count"] += 1
+        metric["seconds"] += elapsed
 
     def start(self) -> None:
         self.telemetry.start()
@@ -88,7 +95,10 @@ class HARPipeline:
                 packet = self.yolo_frames.get(timeout=0.1)
             except queue.Empty:
                 continue
-            self.yolo_results.put((packet, self.detector.detect(packet.frame)))
+            started = time.perf_counter()
+            detections = self.detector.detect(packet.frame)
+            self._record("yolo", time.perf_counter() - started)
+            self.yolo_results.put((packet, detections))
 
     def _run_hands(self) -> None:
         while not self.stop_event.is_set():
@@ -96,7 +106,10 @@ class HARPipeline:
                 packet = self.hand_frames.get(timeout=0.1)
             except queue.Empty:
                 continue
-            self.hand_results.put((packet, self.hand_tracker.track(packet.frame, packet.timestamp)))
+            started = time.perf_counter()
+            hands = self.hand_tracker.track(packet.frame, packet.timestamp)
+            self._record("mediapipe", time.perf_counter() - started)
+            self.hand_results.put((packet, hands))
 
     def _run_fusion(self) -> None:
         pending_yolo: dict[int, Any] = {}
@@ -115,12 +128,15 @@ class HARPipeline:
             for frame_id in set(pending_yolo) & set(pending_hands):
                 frame, detections = pending_yolo.pop(frame_id)
                 _, hands = pending_hands.pop(frame_id)
+                started = time.perf_counter()
                 outputs = []
                 for event in self.fusion.update(hands, detections):
                     outputs.extend(self.protocol.process(event))
                 for result in outputs:
                     self.telemetry.submit(result)
                     self.tts.submit(result)
+                self._record("fusion_fsm", time.perf_counter() - started)
+                self._record("frames", 0.0)
                 annotated = AnnotatedFrame(frame.timestamp, annotate_frame(frame.frame, detections, self.protocol.state))
                 self.video.submit(annotated)
                 try:
