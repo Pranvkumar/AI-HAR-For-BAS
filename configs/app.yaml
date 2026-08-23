@@ -6,6 +6,7 @@ pipeline:
   backend: tensorrt
   adaptive_frame_skip: 1
   fps: 30
+  evidence_engine: box_handling
   gestures:
     model_path: models/gesture_recognizer.task
     num_hands: 2

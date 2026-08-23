@@ -63,7 +63,7 @@ def test_closed_fist_gesture_reinforces_hand_object_grasp() -> None:
     hand_state = HandState(1.0, {"left": landmarks, "right": ()})
     events = InteractionEngine().process(
         hand_state,
-        [Detection("sample_vial", 0.9, (0, 0, 100, 100), 1)],
+        [Detection("red_box", 0.9, (0, 0, 100, 100), 1)],
         (100, 100),
         [RecognizedGesture("Left", "Closed_Fist", 0.95)],
     )

@@ -1,6 +1,10 @@
 # AI HAR for Astronaut BAS Experiments
 
-This repository is the starting point for an offline Human Activity Recognition system that will support astronauts carrying out scientific procedures in microgravity. A local camera will eventually provide visual evidence of procedure steps; the system will guide, alert, record, and display results locally.
+This repository implements a local Human Activity Recognition prototype for SIH
+2026 Problem Statement 26174: **AI Human Activity Recognition for On-board BAS
+Experiments**. It supports astronauts carrying out predefined procedures in
+microgravity by validating a sequence of visible actions without continuous
+ground communication.
 
 ## Hardware target
 
@@ -24,7 +28,7 @@ pytest
 Place approved, locally trained weights at the path configured in `configs/app.yaml`. The pipeline never downloads a model. Then run:
 
 ```bash
-python -m har.pipeline --config configs/app.yaml --source path/to/local-video.mp4
+python scripts/run_pipeline.py --config configs/app.yaml --source path/to/local-video.mp4
 ```
 
 It records an annotated MP4, writes JSON Lines telemetry, and serves an MJPEG stream at `http://127.0.0.1:8000/stream`. In a second terminal, start the local dashboard:
@@ -39,7 +43,7 @@ Run the complete local output and protocol path without a camera, model weights,
 network access:
 
 ```bash
-python -m har.demo
+python scripts/run_sih_demo.py
 ```
 
 This creates `demo-output/har-demo.mp4` and a JSONL telemetry file using a clearly
@@ -56,8 +60,8 @@ python scripts/run_bytetrack.py --model path/to/yolo11n.pt --source path/to/vide
 ```
 
 This writes `recordings/bytetrack/tracked.mp4` with object IDs. A stock model
-validates tracking only; it cannot recognize the project-specific vial, pipette,
-rack, centrifuge slot, or lid until the custom model is trained.
+validates tracking only; it cannot recognize the project-specific outer container
+or inner boxes until the custom model is trained.
 
 ## Hand gesture recognition
 
@@ -76,13 +80,33 @@ The downloaded model is kept out of Git and inference runs locally afterwards.
 Use the landmark information for grasp/contact logic; reserve gesture labels for
 clear deliberate actions such as confirmation or stop signals.
 
+## SIH visible-box baseline
+
+The available SIH statement specifies a synthetic sample experiment with an
+outer box containing a red inner box and a second coloured inner box. The
+official text visible to us does not show the second colour or full sequence, so
+the active baseline uses `second_colored_box` rather than guessing it.
+
+It validates this conservative procedure entirely through relative observations:
+
+1. Retrieve the red box from the outer container.
+2. Retrieve the second coloured box.
+3. Return the red box.
+4. Return the second coloured box.
+
+The classes, sequence, debounce settings, and safety handling are all in
+`configs/protocol.yaml`; edit the YAML once ISRO/SIH publishes the remaining
+details. The separate biological-fluid mock is retained only as a technical
+reference in `configs/mock_biological_fluid_protocol.yaml`.
+
 ## Training preparation
 
-The mock procedure's six classes and an Ultralytics `data.yaml` are ready in
-`data/tool_detection/`. Capture local source images with:
+The active SIH box dataset is ready in `data/sih_box_experiment/`, with
+`outer_container`, `red_box`, `second_colored_box`, and `astronaut_hand`
+classes. Capture local source images with:
 
 ```bash
-python scripts/capture_dataset.py --class-name sample_vial
+python scripts/capture_dataset.py --class-name red_box
 ```
 
 Capture each class from varied angles, distances, lighting, and occlusion. Then
@@ -97,7 +121,7 @@ Share `scripts/contribute_images.py` with contributors. They place photos of one
 class in a folder and run, for example:
 
 ```bash
-python contribute_images.py --class-name sample_vial --input my-photos --contributor Alice --output alice-vials.zip
+python contribute_images.py --class-name red_box --input my-photos --contributor Alice --output alice-red-boxes.zip
 ```
 
 They send you the resulting ZIP. Import it without extracting untrusted files:

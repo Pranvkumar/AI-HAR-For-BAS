@@ -1,0 +1,8 @@
+path: data/sih_box_experiment
+train: images/train
+val: images/val
+names:
+  0: outer_container
+  1: red_box
+  2: second_colored_box
+  3: astronaut_hand

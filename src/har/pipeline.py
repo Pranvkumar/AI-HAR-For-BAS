@@ -11,7 +11,7 @@ from pathlib import Path
 from har.config.loader import load_app, load_protocol
 from har.fsm.protocol_fsm import ProtocolFSM
 from har.fusion.interaction_engine import InteractionEngine
-from har.fusion.protocol_evidence import ProtocolEvidenceEngine
+from har.fusion.protocol_evidence import BoxExperimentEvidenceEngine, ProtocolEvidenceEngine
 from har.ingestion.capture import FrameCapture, FramePacket
 from har.outputs.stream import AnnotatedFrameHub, create_app
 from har.outputs.telemetry import TelemetryLogger
@@ -54,7 +54,11 @@ def run(config_path: str, source_override: str | None = None) -> None:
     fsm = ProtocolFSM(protocol, publish)
     gesture_settings = pipeline.get("gestures", {})
     interactions = InteractionEngine()
-    protocol_evidence = ProtocolEvidenceEngine()
+    protocol_evidence = (
+        ProtocolEvidenceEngine()
+        if pipeline.get("evidence_engine") == "biological_fluid_mock"
+        else BoxExperimentEvidenceEngine()
+    )
     detector = YoloDetector(pipeline["model_path"], backend=pipeline.get("backend", "tensorrt"), frame_skip=int(pipeline.get("adaptive_frame_skip", 1)))
     gestures = HandGestureRecognizer(
         gesture_settings.get("model_path", "models/gesture_recognizer.task"),

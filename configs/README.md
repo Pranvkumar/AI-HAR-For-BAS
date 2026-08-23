@@ -20,18 +20,19 @@ override a safety-critical violation.
 
 TensorRT engines are fastest but GPU- and build-specific. An ONNX Runtime backend remains a planned portability path for other edge hardware; it will be slower but can avoid TensorRT's GPU coupling.
 
-## Mock biological-fluid-analysis protocol
+## SIH visible-box baseline
 
-`protocol.yaml` now encodes the supplied mock procedure: retrieve the sample vial,
-retrieve the pipette, inject reagent, stow the pipette, load the centrifuge, and
-secure its lid. Its event strings are relational rather than position-based:
+`protocol.yaml` is the active SIH baseline. It is based only on the visible part
+of the official statement: an outer box holding a red smaller box and another
+coloured smaller box. The unseen second colour is deliberately represented as
+`second_colored_box`, so it can be renamed without code changes.
 
-- `sample_vial:removed_from_rack`
-- `reagent_pipette:grasp`
-- `reagent_pipette+sample_vial:overlap_2s`
-- `reagent_pipette:stowed_in_rack`
-- `sample_vial:inside_centrifuge_slot`
-- `centrifuge_lid:closed_over_centrifuge_slot`
+- `red_box:removed_from_outer_container`
+- `second_colored_box:removed_from_outer_container`
+- `red_box:returned_to_outer_container`
+- `second_colored_box:returned_to_outer_container`
 
-The configured safety alerts cover attempted centrifuge loading before reagent
-injection and a lid-close observation when no vial has been loaded.
+The box evidence engine derives these events only from object containment plus
+hand grasp/release evidence. It makes no assumption about up/down, gravity, or
+a surface. The biology mock remains available in
+`mock_biological_fluid_protocol.yaml` as a non-active engineering reference.

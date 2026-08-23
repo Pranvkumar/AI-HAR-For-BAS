@@ -11,11 +11,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 OBJECT_CLASSES = (
-    "sample_vial",
-    "reagent_pipette",
-    "rack_holder",
-    "centrifuge_slot",
-    "centrifuge_lid",
+    "outer_container",
+    "red_box",
+    "second_colored_box",
     "astronaut_hand",
 )
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}

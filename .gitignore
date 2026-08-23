@@ -29,7 +29,7 @@ models/
 # Runtime output
 logs/
 recordings/
-demo-output/
+demo-output*/
 *.mp4
 
 # IDE and operating-system files

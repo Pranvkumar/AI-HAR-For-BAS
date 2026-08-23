@@ -7,11 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 OBJECT_CLASSES = (
-    "sample_vial",
-    "reagent_pipette",
-    "rack_holder",
-    "centrifuge_slot",
-    "centrifuge_lid",
+    "outer_container",
+    "red_box",
+    "second_colored_box",
     "astronaut_hand",
 )
 
@@ -23,7 +21,7 @@ def main() -> None:
     parser.add_argument("--class-name", choices=OBJECT_CLASSES, required=True)
     parser.add_argument("--source", default="0", help="Camera number or local video path")
     parser.add_argument("--split", choices=("train", "val"), default="train")
-    parser.add_argument("--output", type=Path, default=Path("data/tool_detection/images"))
+    parser.add_argument("--output", type=Path, default=Path("data/sih_box_experiment/images"))
     args = parser.parse_args()
     import cv2
 

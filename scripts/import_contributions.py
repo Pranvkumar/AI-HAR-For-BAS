@@ -40,7 +40,7 @@ def main() -> None:
                 shutil.copyfileobj(source, output)
             imported += 1
     print(f"Imported {imported} unlabelled {class_name} images into {destination}.")
-    print("Annotate their bounding boxes before moving them into data/tool_detection/images/.")
+    print("Annotate their bounding boxes before moving them into data/sih_box_experiment/images/.")
 
 
 if __name__ == "__main__":

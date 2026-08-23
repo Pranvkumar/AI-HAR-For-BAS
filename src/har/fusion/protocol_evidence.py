@@ -79,3 +79,88 @@ class ProtocolEvidenceEngine:
             interaction = "closed_over_centrifuge_slot" if vial_loaded else "closed_empty"
             events.append(InteractionEvent(timestamp_s, "", "centrifuge_lid", lid.track_id, interaction, False, self._overlap(lid, slot)))
         return events
+
+
+class BoxExperimentEvidenceEngine:
+    """Infer visible SIH box-procedure evidence from containment and hand state."""
+
+    INNER_BOXES = ("red_box", "second_colored_box")
+
+    def __init__(self) -> None:
+        self._was_inside = {item: False for item in self.INNER_BOXES}
+        self._was_removed = {item: False for item in self.INNER_BOXES}
+        self._grasped = {item: False for item in self.INNER_BOXES}
+        self._states: dict[str, bool] = {}
+
+    @staticmethod
+    def _inside(item: Detection, container: Detection) -> bool:
+        return (
+            item.xyxy[0] >= container.xyxy[0]
+            and item.xyxy[1] >= container.xyxy[1]
+            and item.xyxy[2] <= container.xyxy[2]
+            and item.xyxy[3] <= container.xyxy[3]
+        )
+
+    @staticmethod
+    def _first(detections: list[Detection], cls: str) -> Detection | None:
+        return next((item for item in detections if item.cls == cls), None)
+
+    def _changed(self, key: str, active: bool) -> bool:
+        previous = self._states.get(key, False)
+        self._states[key] = active
+        return active and not previous
+
+    def process(
+        self,
+        detections: list[Detection],
+        hand_events: list[InteractionEvent],
+        timestamp_s: float,
+    ) -> list[InteractionEvent]:
+        """Emit change-only removal and return evidence for the box experiment."""
+
+        for event in hand_events:
+            if event.object_class in self._grasped:
+                self._grasped[event.object_class] = event.grasped
+        container = self._first(detections, "outer_container")
+        if container is None:
+            return []
+        events: list[InteractionEvent] = []
+        for class_name in self.INNER_BOXES:
+            inner_box = self._first(detections, class_name)
+            if inner_box is None:
+                continue
+            contained = self._inside(inner_box, container)
+            if contained:
+                if self._was_removed[class_name] and not self._grasped[class_name]:
+                    key = f"{class_name}:returned"
+                    if self._changed(key, True):
+                        events.append(
+                            InteractionEvent(
+                                timestamp_s,
+                                "",
+                                class_name,
+                                inner_box.track_id,
+                                "returned_to_outer_container",
+                                False,
+                                1.0,
+                            )
+                        )
+                self._was_inside[class_name] = True
+                continue
+            removed = self._was_inside[class_name] and self._grasped[class_name]
+            if removed:
+                self._was_removed[class_name] = True
+                key = f"{class_name}:removed"
+                if self._changed(key, True):
+                    events.append(
+                        InteractionEvent(
+                            timestamp_s,
+                            "",
+                            class_name,
+                            inner_box.track_id,
+                            "removed_from_outer_container",
+                            True,
+                            0.0,
+                        )
+                    )
+        return events
