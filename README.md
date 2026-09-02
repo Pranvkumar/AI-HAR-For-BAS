@@ -26,7 +26,21 @@ repository into a Colab session, then run:
 ```python
 %cd /content/AI-HAR-For-BAS
 !pip install -r requirements-train.txt
+!pip install kagglehub
 ```
+
+Prepare the public pretraining data without placing it in Git:
+
+```python
+!python scripts/download_datasets.py --group hand --kaggle --accept-licenses
+!python scripts/download_datasets.py --group interaction --accept-licenses
+!python scripts/download_datasets.py --prepare-sih --accept-licenses
+```
+
+The script downloads public HOI-Synth archives, uses `kagglehub` for HaGRID and
+HaDR when Kaggle access is configured, and prints the official manual download
+steps for EgoHOS and VISOR. It does not bypass dataset terms or download the
+private SIH footage that belongs in `datasets/objects/`.
 
 Upload reviewed YOLO images and labels into:
 
