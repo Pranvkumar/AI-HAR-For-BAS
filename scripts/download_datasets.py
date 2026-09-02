@@ -9,13 +9,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import shutil
-import subprocess
-import sys
 from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "datasets" / "public"
+KAGGLE_CACHE = Path.home() / ".cache" / "kagglehub"
 
 DATASETS = {
     "hagrid": {
@@ -91,6 +90,17 @@ def _prepare_sih() -> None:
     print("Add reviewed SIH images and YOLO labels; do not commit private footage.")
 
 
+def _cleanup(remove_kaggle_cache: bool) -> None:
+    """Delete only data created by this downloader, never the whole runtime."""
+    if DATA.exists():
+        shutil.rmtree(DATA)
+        print(f"Deleted {DATA}")
+    if remove_kaggle_cache and KAGGLE_CACHE.exists():
+        shutil.rmtree(KAGGLE_CACHE)
+        print(f"Deleted Kaggle cache {KAGGLE_CACHE}")
+    print("Scoped cleanup complete. Other /content files were left untouched.")
+
+
 def _show_plan(selected: list[str]) -> None:
     print("Dataset plan:")
     for name in selected:
@@ -102,16 +112,34 @@ def _show_plan(selected: list[str]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Prepare public AEGIS pretraining datasets")
     parser.add_argument("--group", choices=("hand", "interaction", "all"), default="all")
+    parser.add_argument("--datasets", help="comma-separated names; overrides --group")
     parser.add_argument("--accept-licenses", action="store_true",
                         help="confirm that you reviewed each dataset's terms")
     parser.add_argument("--kaggle", action="store_true",
                         help="download Kaggle datasets with an authenticated kagglehub session")
     parser.add_argument("--prepare-sih", action="store_true",
                         help="create private custom SIH dataset directories")
+    parser.add_argument("--cleanup", action="store_true",
+                        help="delete datasets/public only")
+    parser.add_argument("--cleanup-kaggle", action="store_true",
+                        help="also delete the KaggleHub cache")
     args = parser.parse_args(argv)
 
-    selected = [name for name, item in DATASETS.items()
-                if args.group == "all" or item["group"] == args.group]
+    if args.cleanup or args.cleanup_kaggle:
+        _cleanup(args.cleanup_kaggle)
+        if not args.datasets and args.group == "all" and not args.kaggle and not args.prepare_sih:
+            return 0
+
+    if args.datasets:
+        selected = [name.strip() for name in args.datasets.split(",") if name.strip()]
+        unknown = sorted(set(selected) - set(DATASETS))
+        if unknown:
+            raise SystemExit(f"unknown dataset(s): {', '.join(unknown)}")
+    else:
+        selected = [name for name, item in DATASETS.items()
+                    if args.group != "all" and item["group"] == args.group]
+    if not selected:
+        raise SystemExit("select datasets with --datasets, or use --group hand/interaction")
     _show_plan(selected)
     if not args.accept_licenses:
         raise SystemExit("Review the listed terms, then rerun with --accept-licenses")

@@ -32,10 +32,20 @@ repository into a Colab session, then run:
 Prepare the public pretraining data without placing it in Git:
 
 ```python
-!python scripts/download_datasets.py --group hand --kaggle --accept-licenses
-!python scripts/download_datasets.py --group interaction --accept-licenses
+!python scripts/download_datasets.py --datasets hagrid --kaggle --accept-licenses
 !python scripts/download_datasets.py --prepare-sih --accept-licenses
 ```
+
+With limited Colab disk, clean an interrupted or oversized download first:
+
+```python
+!python scripts/download_datasets.py --cleanup --cleanup-kaggle
+```
+
+This removes only `datasets/public` and the KaggleHub cache. It does not delete
+the repository, `/content`, or unrelated Colab files. Do not select `hadr` on a
+runtime with less than about 65 GB free; its archive and extracted files are
+large.
 
 The script downloads public HOI-Synth archives, uses `kagglehub` for HaGRID and
 HaDR when Kaggle access is configured, and prints the official manual download
