@@ -1,0 +1,14 @@
+# Extra packages needed only to TRAIN and export a model.
+# Not required to run the app.
+-r requirements.txt
+
+onnx>=1.15,<2
+
+torch>=2.2
+
+# Object detector (Tier 2). Ultralytics pulls in PyTorch -- ~2.5 GB. Only the
+# ground station needs this; the runtime loads the exported .onnx through
+# onnxruntime, which is already in requirements.txt.
+ultralytics>=8.2,<9
+# Note: Ultralytics is AGPL-3.0. That governs the training tool, not the ONNX
+# file it produces, but check it against your submission terms.

@@ -1,53 +1,84 @@
-# AI-HAR-For-BAS
+# AEGIS AI-HAR for BAS
 
-An offline edge assistant that uses computer vision to track, validate, and
-provide guidance for astronaut science experiments in space. The target demo
-hardware is a Lenovo Legion laptop with an RTX 4060 and NVENC; CPU fallbacks
-keep development and tests possible without a GPU.
+AEGIS is an offline, safety-aware assistant for validating astronaut payload
+procedures. This repository now contains the consolidated AEGIS runtime:
+MediaPipe hands, optional GPU object detection, object tracking, relational
+containment evidence, temporal recognition, protocol FSM, safe modes, audit
+logging, recording, voice alerts, and the live mission console.
 
-## Status
+## Project Layout
 
-Phase 1 and Phase 2 are implemented: the project includes the Ultralytics
-tracking adapter, training/export utilities, CPU MediaPipe adapter, relational
-hand-object fusion, YAML protocol loading, and a fault-tolerant protocol FSM.
+- `src/aegis/` is the maintained runtime and training integration.
+- `configs/` contains the app and experiment protocol configuration.
+- `datasets/objects/` is the local YOLO dataset location. Private images are
+	intentionally excluded from Git.
+- `tests/` contains hardware-free detector, tracking, fusion, safety, and
+	protocol tests.
 
-## Development
+The older `src/har/` implementation remains for reference during migration;
+new work should use `aegis`.
 
-```bash
-python -m pip install -e '.[dev]'
-pytest
+## Google Colab Training
+
+Colab is useful when you want a temporary NVIDIA GPU. Upload or clone this
+repository into a Colab session, then run:
+
+```python
+%cd /content/AI-HAR-For-BAS
+!pip install -r requirements-train.txt
 ```
 
-Tests use synthetic events and do not download weights or require a camera.
-Provide a trained `.pt` or TensorRT `.engine` path when using
-`har.vision.yolo_wrapper.YoloDetector` in a live environment.
+Upload reviewed YOLO images and labels into:
 
-For a CPU smoke run with the COCO-pretrained YOLO11n placeholder, download
-`yolo11n.pt` at build time, then use `configs/demo_cpu.yaml`. Replace that
-path with the BAS-trained weights for the real experiment.
-
-## Synthetic Dataset and Training
-
-For the red/blue microgravity mock procedure, generate a local synthetic dataset,
-train YOLOv11n, and run the full pipeline:
-
-```bash
-python scripts/build_red_blue_pipeline.py --epochs 25
-PYTHONPATH=src python scripts/benchmark_pipeline.py --config configs/demo_red_blue_boxes_cpu.yaml --seconds 10
+```text
+datasets/objects/images/train/
+datasets/objects/images/val/
+datasets/objects/labels/train/
+datasets/objects/labels/val/
 ```
 
-PowerShell:
+Use the canonical classes in this order:
+`outer_container`, `container_lid`, `red_box`, `blue_box`, `astronaut_hand`.
+Then train and export on the Colab GPU:
+
+```python
+!python -m aegis.tools.train_objects split
+!python -m aegis.tools.train_objects train --device auto --epochs 80 --batch 8
+!python -m aegis.tools.train_objects export
+!python -m aegis.tools.train_objects check
+```
+
+Download `models/objects/objects.onnx` and its `.names.json` sidecar after
+training. Do not upload private webcam images to GitHub. Review every
+auto-generated label before training; colour mistakes between red and blue
+objects directly reduce wrong-object accuracy.
+
+## Windows Laptop Training
+
+The RTX 4050 laptop is usually the simplest option for repeated experiments:
+
+```powershell
+cd C:\path\to\AI-HAR-For-BAS
+.\INSTALL.bat
+.\TRAIN_OBJECTS.bat grab
+.\TRAIN_OBJECTS.bat autolabel
+# Review labels, then:
+.\TRAIN_OBJECTS.bat split
+.\TRAIN_OBJECTS.bat train --device auto --epochs 80
+.\TRAIN_OBJECTS.bat export
+.\TRAIN_OBJECTS.bat check
+```
+
+`--device auto` selects CUDA when PyTorch can see it and otherwise falls back
+to CPU. Colab can be faster only when it provides an L4 or A100; free Colab
+sessions may be slower or interrupted.
+
+## Development and Tests
 
 ```powershell
 $env:PYTHONPATH = "src"
-python scripts/build_red_blue_pipeline.py --epochs 25
-python scripts/benchmark_pipeline.py --config configs/demo_red_blue_boxes_cpu.yaml --seconds 10
+python -m pytest -q
 ```
 
-### Notes
-
-- Synthetic images and YOLO labels are generated under `datasets/red_blue_synth/`.
-- Training metrics and checkpoints are written under `runs/detect/models/runs/red_blue_synth/`.
-- `best.pt` weights are git-ignored by design; regenerate locally with
-	`python scripts/build_red_blue_pipeline.py --epochs 25` before running the benchmark config.
-- Procedure protocol and anomaly rules are in `configs/protocol_red_blue_boxes.yaml`.
+Tests are hardware-free and do not require a camera or trained weights. Start
+the operator console with `START.bat` after installing the runtime dependencies.

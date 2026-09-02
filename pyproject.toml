@@ -3,32 +3,22 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-har-for-bas"
-version = "0.1.0"
-description = "Offline human activity recognition for astronaut BAS experiments"
+name = "aegis-har"
+version = "1.0.0"
+description = "AI Human Activity Recognition for on-board BAS experiments (SIH 26174)"
 requires-python = ">=3.10"
-# Exact pins should be finalized after Phase 1 model export testing.
-dependencies = [
-  "ultralytics>=8.3,<9",
-  "lap>=0.5.12",
-  "mediapipe>=0.10,<0.11",
-  "protobuf>=4.25,<5",
-  "transitions>=0.9,<1",
-  "pyttsx3>=2.90,<3",
-  "opencv-python>=4.8,<5",
-  "fastapi>=0.110,<1",
-  "uvicorn>=0.29,<1",
-  "streamlit>=1.35,<2",
-  "pydantic>=2,<3",
-  "PyYAML>=6,<7",
-]
+readme = "README.md"
 
-[project.optional-dependencies]
-dev = ["pytest>=8,<10", "black>=24,<26"]
+[project.scripts]
+aegis = "aegis.gui.app:main"
+aegis-calibrate = "aegis.tools.calibrate:main"
+aegis-record = "aegis.tools.record_dataset:main"
+aegis-train = "aegis.tools.train_action_model:main"
+aegis-doctor = "aegis.tools.diagnostics:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
 testpaths = ["tests"]
+pythonpath = ["src"]
