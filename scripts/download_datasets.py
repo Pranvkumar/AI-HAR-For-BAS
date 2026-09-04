@@ -98,7 +98,7 @@ def _cleanup(remove_kaggle_cache: bool) -> None:
     if remove_kaggle_cache and KAGGLE_CACHE.exists():
         shutil.rmtree(KAGGLE_CACHE)
         print(f"Deleted Kaggle cache {KAGGLE_CACHE}")
-    print("Scoped cleanup complete. Other /content files were left untouched.")
+    print("Scoped cleanup complete. Other files were left untouched.")
 
 
 def _show_plan(selected: list[str]) -> None:

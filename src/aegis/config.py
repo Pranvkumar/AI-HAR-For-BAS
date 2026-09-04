@@ -63,6 +63,8 @@ class AppConfig:
     voice_rate: int = 165
     voice_volume: float = 1.0
     voice_cooldown_s: float = 2.5
+    voice_model_path: str = "models/voice"
+    voice_model_device: str = "cpu"
 
     log_dir: str = "logs"
     report_dir: str = "logs"
@@ -101,6 +103,10 @@ class AppConfig:
     @property
     def action_metadata_file(self) -> Path:
         return _resolve(self.action_metadata_path, self.root)
+
+    @property
+    def voice_model_directory(self) -> Path:
+        return _resolve(self.voice_model_path, self.root)
 
     @property
     def objects_model_file(self) -> Path:

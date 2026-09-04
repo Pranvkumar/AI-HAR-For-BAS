@@ -12,25 +12,25 @@ import tkinter.font as tkfont
 
 class C:
     # surfaces
-    BG = "#080b12"
-    PANEL = "#0e131d"
-    PANEL_HI = "#141b28"
-    CARD = "#121a26"
-    LINE = "#1e2a3d"
-    LINE_HI = "#2c3d57"
+    BG = "#17191c"
+    PANEL = "#202326"
+    PANEL_HI = "#292d31"
+    CARD = "#24282c"
+    LINE = "#30353a"
+    LINE_HI = "#3c4349"
 
     # type
-    TEXT = "#dce6f4"
-    TEXT_DIM = "#7c8ea8"
-    TEXT_FAINT = "#4d5c73"
+    TEXT = "#e3e5e6"
+    TEXT_DIM = "#a1a7aa"
+    TEXT_FAINT = "#70787d"
 
     # semantics
-    ACCENT = "#f0c674"     # AEGIS gold - branding and the active step
-    OK = "#5fd68a"
-    INFO = "#5cc8f5"
-    WARN = "#f5a742"
-    CRIT = "#ff5f56"
-    IDLE = "#3a4a63"
+    ACCENT = "#d9b36c"     # matte brass - active step and branding
+    OK = "#80c697"
+    INFO = "#8db7c9"
+    WARN = "#d6a66b"
+    CRIT = "#d97970"
+    IDLE = "#596167"
 
     STATE = {
         "pending": TEXT_FAINT,

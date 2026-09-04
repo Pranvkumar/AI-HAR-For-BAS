@@ -6,6 +6,48 @@ MediaPipe hands, optional GPU object detection, object tracking, relational
 containment evidence, temporal recognition, protocol FSM, safe modes, audit
 logging, recording, voice alerts, and the live mission console.
 
+## Quick Start
+
+From PowerShell:
+
+```powershell
+cd C:\SIH\AI-HAR-For-BAS
+$env:PYTHONPATH = "src"
+.venv\Scripts\python.exe -m aegis.gui.app
+```
+
+Or double-click `START.bat` in the repository folder. To run silently without
+voice instructions or voice alerts:
+
+```powershell
+.venv\Scripts\python.exe -m aegis.gui.app --no-voice
+```
+
+You can also start silently with the launcher:
+
+```powershell
+START.bat --no-voice
+```
+
+To disable voice by default, set this in `configs/app.yaml`:
+
+```yaml
+voice_enabled: false
+```
+
+Run diagnostics with:
+
+```powershell
+.venv\Scripts\python.exe -m aegis.tools.diagnostics
+```
+
+Run tests with:
+
+```powershell
+$env:PYTHONPATH = "src"
+.venv\Scripts\python.exe -m pytest -q
+```
+
 ## Project Layout
 
 - `src/aegis/` is the maintained runtime and training integration.
@@ -18,66 +60,7 @@ logging, recording, voice alerts, and the live mission console.
 The older `src/har/` implementation remains for reference during migration;
 new work should use `aegis`.
 
-## Google Colab Training
-
-Colab is useful when you want a temporary NVIDIA GPU. Upload or clone this
-repository into a Colab session, then run:
-
-```python
-%cd /content/AI-HAR-For-BAS
-!pip install -r requirements-train.txt
-!pip install kagglehub
-```
-
-Prepare the public pretraining data without placing it in Git:
-
-```python
-!python scripts/download_datasets.py --datasets hagrid --kaggle --accept-licenses
-!python scripts/download_datasets.py --prepare-sih --accept-licenses
-```
-
-With limited Colab disk, clean an interrupted or oversized download first:
-
-```python
-!python scripts/download_datasets.py --cleanup --cleanup-kaggle
-```
-
-This removes only `datasets/public` and the KaggleHub cache. It does not delete
-the repository, `/content`, or unrelated Colab files. Do not select `hadr` on a
-runtime with less than about 65 GB free; its archive and extracted files are
-large.
-
-The script downloads public HOI-Synth archives, uses `kagglehub` for HaGRID and
-HaDR when Kaggle access is configured, and prints the official manual download
-steps for EgoHOS and VISOR. It does not bypass dataset terms or download the
-private SIH footage that belongs in `datasets/objects/`.
-
-Upload reviewed YOLO images and labels into:
-
-```text
-datasets/objects/images/train/
-datasets/objects/images/val/
-datasets/objects/labels/train/
-datasets/objects/labels/val/
-```
-
-Use the canonical classes in this order:
-`outer_container`, `container_lid`, `red_box`, `blue_box`, `astronaut_hand`.
-Then train and export on the Colab GPU:
-
-```python
-!python -m aegis.tools.train_objects split
-!python -m aegis.tools.train_objects train --device auto --epochs 80 --batch 8
-!python -m aegis.tools.train_objects export
-!python -m aegis.tools.train_objects check
-```
-
-Download `models/objects/objects.onnx` and its `.names.json` sidecar after
-training. Do not upload private webcam images to GitHub. Review every
-auto-generated label before training; colour mistakes between red and blue
-objects directly reduce wrong-object accuracy.
-
-## Windows Laptop Training
+## Training
 
 The RTX 4050 laptop is usually the simplest option for repeated experiments:
 
@@ -94,8 +77,7 @@ cd C:\path\to\AI-HAR-For-BAS
 ```
 
 `--device auto` selects CUDA when PyTorch can see it and otherwise falls back
-to CPU. Colab can be faster only when it provides an L4 or A100; free Colab
-sessions may be slower or interrupted.
+to CPU.
 
 ## Development and Tests
 

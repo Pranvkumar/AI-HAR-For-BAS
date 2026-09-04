@@ -21,3 +21,8 @@ onnxruntime>=1.17,<2
 
 # Offline text-to-speech for the voice alerts (SAPI5 on Windows).
 pyttsx3>=2.90,<3
+
+# Offline microphone command input and local Whisper transcription.
+SpeechRecognition>=3.10,<4
+faster-whisper>=1.1,<2
+PyAudio>=0.2.14,<0.3

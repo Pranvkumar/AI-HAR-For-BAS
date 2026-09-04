@@ -393,7 +393,7 @@ def build_parser() -> argparse.ArgumentParser:
     split.set_defaults(func=cmd_split)
 
     train = sub.add_parser("train", help="fine-tune a small YOLO")
-    train.add_argument("--weights", default="yolov8n.pt")
+    train.add_argument("--weights", default="yolo11n.pt")
     train.add_argument("--epochs", type=int, default=80)
     train.add_argument("--imgsz", type=int, default=640)
     train.add_argument("--batch", type=int, default=8)

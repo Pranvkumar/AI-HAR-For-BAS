@@ -666,6 +666,9 @@ class HARPipeline:
     def clear_faults(self) -> None:
         self.injector.clear_all()
 
+    def set_markers_visible(self, visible: bool) -> None:
+        self._overlay.show_markers = visible
+
     def last_explanation(self) -> str:
         return self._last_decision.explain() if self._last_decision else "no decision yet"
 

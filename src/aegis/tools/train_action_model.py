@@ -508,7 +508,10 @@ def run(args) -> int:
             model.eval()
             with torch.no_grad():
                 for s in range(0, len(Xte), 512):
-                    preds.append(model(torch.tensor(Xte[s : s + 512])).argmax(1).numpy())
+                    preds.append(
+                        model(torch.tensor(Xte[s : s + 512], device=device))
+                        .argmax(1).cpu().numpy()
+                    )
     else:
         model, acc, history = train_numpy(Xtr, ytr, Xte, yte, len(labels),
                                           args.epochs, args.hidden, args.batch, args.lr)

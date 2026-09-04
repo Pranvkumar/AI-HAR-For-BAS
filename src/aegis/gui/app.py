@@ -21,6 +21,7 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
+import tempfile
 import traceback
 import webbrowser
 
@@ -172,12 +173,17 @@ class MissionConsole:
         self.photo = None
         self._closing = False
         self._last_status_text = ""
+        self._whisper_model = None
+        self._details_visible = True
+        self._markers_visible = True
 
         pick_fonts(root)
         root.title("AEGIS  //  AI-HAR Mission Console  --  ISRO BAS Payload")
         root.configure(bg=C.BG)
-        root.geometry("1500x900")
-        root.minsize(1180, 740)
+        root.geometry("1500x980")
+        root.minsize(1180, 820)
+        if sys.platform.startswith("win"):
+            root.state("zoomed")
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self._style()
@@ -226,10 +232,11 @@ class MissionConsole:
         left = tk.Frame(body, bg=C.BG)
         left.pack(side="left", fill="both", expand=True)
 
-        self.video = tk.Label(left, bg="#04060a", bd=0)
+        self.video = tk.Label(left, bg="#101214", bd=0)
         self.video.pack(fill="both", expand=True)
 
         metrics = tk.Frame(left, bg=C.PANEL, height=34)
+        self.metrics = metrics
         metrics.pack(fill="x", pady=(8, 0))
         metrics.pack_propagate(False)
         self.metric_vars = {}
@@ -303,12 +310,33 @@ class MissionConsole:
         self.log.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         # ---- controls ---------------------------------------------------
-        controls = tk.Frame(self.root, bg=C.PANEL, height=62)
-        controls.pack(fill="x", side="bottom")
-        controls.pack_propagate(False)
+        controls = tk.Frame(self.root, bg=C.PANEL, height=104,
+                    highlightthickness=1, highlightbackground=C.LINE)
+        controls.pack(fill="x", side="top", before=body)
+        controls.pack_propagate(True)
+
+        command_row = tk.Frame(controls, bg=C.PANEL)
+        command_row.pack(fill="x", padx=12, pady=(6, 2))
+        tk.Label(command_row, text="VOICE COMMAND", bg=C.PANEL, fg=C.TEXT_FAINT,
+                 font=font(8, "bold")).pack(side="left", padx=(4, 8))
+        self.command_entry = tk.Entry(
+            command_row, bg=C.BG, fg=C.TEXT, insertbackground=C.TEXT,
+            relief="flat", width=28, font=font(9),
+        )
+        self.command_entry.pack(side="left", ipady=7)
+        self.command_entry.bind("<Return>", lambda _event: self.on_voice_command())
+        self.btn_listen = button(command_row, "LISTEN", self.on_listen, width=9)
+        self.btn_listen.pack(side="left", padx=(8, 4))
+        self.btn_markers = button(command_row, "MARKERS ON", self.on_markers, width=10)
+        self.btn_markers.pack(side="left", padx=4)
+        self.btn_details = button(command_row, "DETAILS ON", self.on_details, width=10)
+        self.btn_details.pack(side="left", padx=4)
+        self.command_hint = tk.Label(command_row, text="say: status / confirm / skip",
+                                     bg=C.PANEL, fg=C.TEXT_FAINT, font=font(8), anchor="w")
+        self.command_hint.pack(side="left", padx=4)
 
         row = tk.Frame(controls, bg=C.PANEL)
-        row.pack(pady=11)
+        row.pack(fill="x", padx=12, pady=(2, 8))
 
         self.btn_start = button(row, "START SESSION", self.on_start, kind="primary", width=16)
         self.btn_start.pack(side="left", padx=4)
@@ -320,18 +348,18 @@ class MissionConsole:
         self.btn_confirm.pack(side="left", padx=4)
         self.btn_skip = button(row, "SKIP STEP", self.on_skip, width=12)
         self.btn_skip.pack(side="left", padx=4)
-        self.btn_rec = button(row, "RECORD", self.on_record, width=10)
+        self.btn_rec = button(row, "RECORD", self.on_record, width=9)
         self.btn_rec.pack(side="left", padx=4)
-        self.btn_stream = button(row, "STREAM", self.on_stream, width=10)
+        self.btn_stream = button(row, "STREAM", self.on_stream, width=9)
         self.btn_stream.pack(side="left", padx=4)
-        self.btn_voice = button(row, "VOICE", self.on_voice, width=9)
+        self.btn_voice = button(row, "VOICE", self.on_voice, width=8)
         self.btn_voice.pack(side="left", padx=4)
+        self.btn_more = button(row, "MORE", self.on_more, width=8)
+        self.btn_more.pack(side="left", padx=4)
+
         self.btn_logs = button(row, "OPEN LOGS", self.on_open_logs, width=11)
-        self.btn_logs.pack(side="left", padx=4)
         self.btn_why = button(row, "WHY?", self.on_why, width=8)
-        self.btn_why.pack(side="left", padx=4)
         self.btn_faults = button(row, "INJECT FAULT", self.on_faults, kind="danger", width=13)
-        self.btn_faults.pack(side="left", padx=4)
 
         self._set_running(False)
         self._render_protocol_preview()
@@ -358,7 +386,8 @@ class MissionConsole:
         state = "normal" if running else "disabled"
         for btn in (self.btn_stop, self.btn_ack, self.btn_confirm, self.btn_skip,
                     self.btn_rec, self.btn_stream, self.btn_voice,
-                    self.btn_why, self.btn_faults):
+                    self.btn_why, self.btn_faults, self.btn_listen,
+                    self.btn_markers, self.btn_details, self.btn_more):
             btn.config(state=state)
         self.btn_start.config(state="disabled" if running else "normal")
 
@@ -445,6 +474,139 @@ class MissionConsole:
         if self.pipeline:
             enabled = self.pipeline.toggle_voice()
             self.log.append("info", f"Voice alerts {'enabled' if enabled else 'muted'}")
+
+    def on_markers(self) -> None:
+        self._markers_visible = not self._markers_visible
+        if self.pipeline is not None:
+            self.pipeline.set_markers_visible(self._markers_visible)
+        self.btn_markers.config(text="MARKERS ON" if self._markers_visible else "MARKERS OFF")
+        self.log.append("info", f"Rack markers {'shown' if self._markers_visible else 'hidden'}")
+
+    def on_details(self) -> None:
+        self._details_visible = not self._details_visible
+        if self._details_visible:
+            self.metrics.pack(fill="x", pady=(8, 0))
+            self.btn_details.config(text="DETAILS ON")
+        else:
+            self.metrics.pack_forget()
+            self.btn_details.config(text="DETAILS OFF")
+
+    def on_more(self) -> None:
+        for btn in (self.btn_logs, self.btn_why, self.btn_faults):
+            if btn.winfo_ismapped():
+                btn.pack_forget()
+                self.btn_more.config(text="MORE")
+            else:
+                btn.pack(side="left", padx=4)
+                self.btn_more.config(text="LESS")
+
+    def _speak(self, text: str) -> None:
+        if self.pipeline is not None and self.pipeline.voice.enabled:
+            self.pipeline.voice.say(text, force=True)
+
+    def on_voice_command(self) -> None:
+        """Run a short, safety-scoped command without blocking the UI."""
+        command = self.command_entry.get().strip().lower()
+        if not command:
+            return
+        self.command_entry.delete(0, "end")
+        if self.pipeline is None:
+            response = "Start a session before issuing mission commands."
+        elif any(word in command for word in ("start", "begin", "resume")):
+            response = "The session is already running."
+        elif any(word in command for word in ("stop", "end", "finish")):
+            response = "Stopping the session."
+            self.on_stop()
+        elif "confirm" in command or "complete" in command:
+            response = "Confirming the current step."
+            self.on_confirm()
+        elif "skip" in command:
+            response = "Skipping the current step."
+            self.on_skip()
+        elif "acknowledge" in command or command == "ack":
+            response = "Alert acknowledged."
+            self.on_ack()
+        elif "record" in command:
+            self.on_record()
+            response = "Recording state changed."
+        elif "stream" in command:
+            self.on_stream()
+            response = "Streaming state changed."
+        elif "mute" in command or "voice off" in command:
+            if self.pipeline.voice.enabled:
+                self.on_voice()
+            response = "Voice alerts muted."
+        elif "voice" in command or "unmute" in command:
+            if not self.pipeline.voice.enabled:
+                self.on_voice()
+            response = "Voice alerts enabled."
+        elif "status" in command or "how are" in command:
+            status = self.pipeline.snapshot()
+            response = f"System {status.mode}. Camera {'ready' if status.camera_ok else 'not ready'}."
+        else:
+            response = "Command not recognized. Try status, confirm, skip, record, or stop."
+        self.log.append("info", f"Command: {command} -> {response}")
+        self._speak(response)
+
+    def on_listen(self) -> None:
+        if self.pipeline is None:
+            self.log.append("warning", "Start a session before listening for commands.")
+            return
+        self.btn_listen.config(state="disabled", text="LISTENING")
+
+        def worker():
+            try:
+                import speech_recognition as sr
+
+                recognizer = sr.Recognizer()
+                with sr.Microphone() as source:
+                    self.root.after(0, lambda: self.command_hint.config(text="Listening..."))
+                    audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
+                model = self._get_whisper_model()
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as recording:
+                    recording.write(audio.get_wav_data())
+                    recording_path = recording.name
+                try:
+                    segments, _ = model.transcribe(
+                        recording_path, beam_size=5, vad_filter=True, language="en"
+                    )
+                    text = " ".join(segment.text.strip() for segment in segments).strip()
+                finally:
+                    Path(recording_path).unlink(missing_ok=True)
+                if not text:
+                    raise RuntimeError("no speech was recognized")
+                self.root.after(0, lambda: (self.command_entry.insert(0, text), self.on_voice_command()))
+            except ImportError:
+                self.root.after(0, lambda: self.log.append(
+                    "warning", "Voice input unavailable; install SpeechRecognition, PyAudio, and faster-whisper."
+                ))
+            except Exception as exc:
+                self.root.after(0, lambda: self.log.append("warning", f"Microphone command failed: {exc}"))
+            finally:
+                self.root.after(0, lambda: self._finish_listen())
+
+        threading.Thread(target=worker, name="voice-input", daemon=True).start()
+
+    def _get_whisper_model(self):
+        if self._whisper_model is not None:
+            return self._whisper_model
+        model_dir = self.config.voice_model_directory
+        if not (model_dir / "model.bin").exists():
+            raise FileNotFoundError(
+                f"Whisper model not found: {model_dir / 'model.bin'}. "
+                "Place the complete voice model in models/voice."
+            )
+        from faster_whisper import WhisperModel
+
+        self.command_hint.config(text="Loading voice model...")
+        self._whisper_model = WhisperModel(
+            str(model_dir), device=self.config.voice_model_device, compute_type="int8"
+        )
+        return self._whisper_model
+
+    def _finish_listen(self) -> None:
+        self.btn_listen.config(state="normal" if self.pipeline is not None else "disabled", text="LISTEN")
+        self.command_hint.config(text="say: status / confirm / skip")
 
     def on_why(self) -> None:
         """Show the evidence behind the most recent decision."""

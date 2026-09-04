@@ -64,6 +64,8 @@ voice_enabled: true
 voice_rate: 165
 voice_volume: 1.0
 voice_cooldown_s: 2.5
+voice_model_path: models/voice
+voice_model_device: cpu
 
 log_dir: logs
 report_dir: logs

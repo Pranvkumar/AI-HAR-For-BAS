@@ -56,6 +56,7 @@ class OverlayState:
     session_id: str = ""
     recording: bool = False
     streaming: bool = False
+    show_markers: bool = True
 
 
 def _put(img, text, org, scale=0.55, colour=COL_TEXT, thickness=1, shadow=True):
@@ -87,14 +88,14 @@ def draw(frame: np.ndarray, result, rack, zones, state: OverlayState) -> np.ndar
     height, width = img.shape[:2]
 
     # --- rack quad ------------------------------------------------------
-    if rack is not None and rack.corners_px is not None and rack.source != "identity":
+    if state.show_markers and rack is not None and rack.corners_px is not None and rack.source != "identity":
         quad = rack.corners_px.astype(np.int32).reshape(-1, 1, 2)
         colour = COL_OK if rack.source == "aruco" else COL_INFO
         cv2.polylines(img, [quad], True, colour, 2, cv2.LINE_AA)
         _put(img, f"RACK FRAME [{rack.source}]", tuple(rack.corners_px[0].astype(int) + np.array([4, -8])), 0.45, colour)
 
     # --- zones ----------------------------------------------------------
-    if zones is not None and rack is not None and len(zones):
+    if state.show_markers and zones is not None and rack is not None and len(zones):
         for zone in zones:
             try:
                 pts = rack.to_pixels(zone.polygon).astype(np.int32).reshape(-1, 1, 2)
