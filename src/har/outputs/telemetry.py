@@ -1,39 +1,49 @@
-"""Queue-backed append-only JSON Lines telemetry writer."""
+"""Thread-safe append-only JSON Lines telemetry output."""
 
-from dataclasses import asdict, is_dataclass
+from __future__ import annotations
+
 import json
-from pathlib import Path
 import queue
 import threading
-import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+from har.events import event_to_dict
 
 
 class TelemetryLogger:
-    def __init__(self, path: str | Path = "logs/events.jsonl") -> None:
-        self.path = Path(path)
-        self.events: queue.Queue[Any] = queue.Queue()
-        self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self._run, name="telemetry", daemon=True)
+    """Write typed FSM events on one dedicated thread."""
+
+    def __init__(self, directory: str | Path = "logs") -> None:
+        directory_path = Path(directory)
+        directory_path.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        self.path = directory_path / f"har-{stamp}.jsonl"
+        self.queue: queue.Queue[Any | None] = queue.Queue()
+        self._thread = threading.Thread(target=self._write, name="telemetry-writer", daemon=True)
 
     def start(self) -> None:
-        self.thread.start()
+        """Start the writer thread."""
 
-    def submit(self, event: Any) -> None:
-        self.events.put(event)
+        self._thread.start()
 
-    def _run(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as stream:
-            while not self.stop_event.is_set() or not self.events.empty():
-                try:
-                    event = self.events.get(timeout=0.1)
-                except queue.Empty:
-                    continue
-                payload = asdict(event) if is_dataclass(event) else event
-                stream.write(json.dumps({"timestamp_written": time.time(), "event": payload}, default=str) + "\n")
-                stream.flush()
+    def publish(self, event: Any) -> None:
+        """Queue an event without blocking a vision worker."""
 
-    def stop(self) -> None:
-        self.stop_event.set()
-        self.thread.join(timeout=2)
+        self.queue.put_nowait(event)
+
+    def _write(self) -> None:
+        with self.path.open("a", encoding="utf-8") as handle:
+            while True:
+                event = self.queue.get()
+                if event is None:
+                    return
+                handle.write(json.dumps(event_to_dict(event), default=str) + "\n")
+                handle.flush()
+
+    def close(self, timeout_s: float = 2.0) -> None:
+        """Flush queued data and stop the writer."""
+
+        self.queue.put(None)
+        self._thread.join(timeout_s)

@@ -1,110 +1,86 @@
-"""Single-instance Ultralytics tracking adapter with a CPU fallback."""
+"""Thin, tracked YOLO detector with an offline CPU fallback."""
 
-from dataclasses import dataclass
-import importlib
+from __future__ import annotations
+
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
+
+from har.events import Detection
 
 LOGGER = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class Detection:
-    cls: int | str
-    conf: float
-    xyxy: tuple[float, float, float, float]
-    track_id: int | None = None
-
-
 class YoloDetector:
-    """Load exactly one model and normalize tracked results to ``Detection``."""
+    """Run a single YOLO model instance and return ByteTrack/BoT-SORT detections."""
 
-    def __init__(
-        self,
-        model_path: str | Path,
-        *,
-        conf: float = 0.25,
-        tracker: str = "bytetrack.yaml",
-        backend: str = "auto",
-        frame_skip: int = 1,
-    ) -> None:
-        self.model_path = Path(model_path)
-        self.conf = conf
-        self.tracker = tracker
-        self.backend = backend
-        self.frame_skip = max(1, frame_skip)
-        self._frame_index = 0
+    def __init__(self, model_path: str | Path, tracker: str = "bytetrack.yaml", backend: str = "tensorrt", frame_skip: int = 1) -> None:
+        requested = Path(model_path)
+        self.backend = backend.lower()
+        if self.backend not in {"auto", "tensorrt", "onnx"}:
+            raise ValueError("backend must be 'tensorrt' or 'onnx'")
+        if frame_skip < 1:
+            raise ValueError("frame_skip must be at least one")
+        self.model_path = self._resolve_model(requested)
+        self.tracker, self.frame_skip = tracker, frame_skip
+        self._frame_number = 0
         self._previous: list[Detection] = []
-        self._latest: list[Detection] = []
-        self._model: Any = None
-        self._names: dict[int, str] = {}
-        self._load()
+        self.model = self._load_model(self.model_path)
 
-    def _load(self) -> None:
+    @staticmethod
+    def _resolve_model(requested: Path) -> Path:
+        """Prefer an existing engine; otherwise use an adjacent or requested .pt file."""
+
+        if requested.suffix in {".engine", ".onnx"} and requested.exists():
+            return requested
+        if requested.suffix in {".engine", ".onnx"}:
+            fallback = requested.with_suffix(".pt")
+            if fallback.exists():
+                LOGGER.warning("TensorRT engine missing; falling back to CPU weights: %s", fallback)
+                return fallback
+            raise FileNotFoundError(f"Neither engine nor CPU fallback exists for {requested}")
+        if requested.exists():
+            return requested
+        raise FileNotFoundError(f"YOLO weights not found: {requested}")
+
+    @staticmethod
+    def _load_model(path: Path) -> Any:
+        """Import Ultralytics lazily so non-vision tests remain lightweight."""
+
         try:
-            YOLO = importlib.import_module("ultralytics").YOLO
+            from ultralytics import YOLO
         except ImportError as error:
-            raise RuntimeError(
-                "ultralytics is required to construct YoloDetector"
-            ) from error
-        if self.backend.lower() == "onnx" and self.model_path.suffix != ".onnx":
-            onnx_path = self.model_path.with_suffix(".onnx")
-            if onnx_path.exists():
-                self.model_path = onnx_path
-            else:
-                LOGGER.warning("ONNX backend requested but %s was not found; using %s", onnx_path, self.model_path)
-        if self.model_path.suffix != ".engine":
-            LOGGER.warning(
-                "TensorRT engine not selected; using CPU-compatible model %s",
-                self.model_path,
-            )
-        self._model = YOLO(str(self.model_path))
-        self._names = getattr(self._model, "names", {}) or {}
+            raise RuntimeError("Install the project's vision dependencies before loading YOLO.") from error
+        return YOLO(str(path))
 
     def detect(self, frame: Any) -> list[Detection]:
-        """Track one frame; the model owns persistent tracker state."""
-        self._frame_index += 1
-        if self.frame_skip > 1 and self._frame_index % self.frame_skip != 1:
-            return self._interpolate()
-        results = self._model.track(
-            frame, persist=True, tracker=self.tracker, conf=self.conf, verbose=False
-        )
+        """Track objects in a BGR frame without silently downloading any model."""
+
+        self._frame_number += 1
+        if self.frame_skip > 1 and self._previous and self._frame_number % self.frame_skip:
+            return list(self._previous)
+        device = "cpu" if self.model_path.suffix in {".pt", ".onnx"} else None
+        results = self.model.track(frame, persist=True, tracker=self.tracker, verbose=False, device=device)
         if not results:
             return []
         result = results[0]
         boxes = getattr(result, "boxes", None)
         if boxes is None:
             return []
-        output = []
-        for box in boxes:
-            coords = tuple(float(value) for value in box.xyxy[0].tolist())
-            class_id = int(box.cls[0].item())
-            track = getattr(box, "id", None)
-            track_id = int(track[0].item()) if track is not None else None
-            output.append(
+        names = getattr(result, "names", {})
+        ids = boxes.id.int().tolist() if getattr(boxes, "id", None) is not None else []
+        detections: list[Detection] = []
+        for index, box in enumerate(boxes):
+            class_index = int(box.cls.item())
+            label = str(names.get(class_index, class_index)) if isinstance(names, dict) else str(class_index)
+            detections.append(
                 Detection(
-                    self._names.get(class_id, class_id),
-                    float(box.conf[0].item()),
-                    coords,
-                    track_id,
+                    cls=label,
+                    conf=float(box.conf.item()),
+                    xyxy=tuple(float(value) for value in box.xyxy[0].tolist()),
+                    track_id=int(ids[index]) if index < len(ids) else None,
                 )
             )
-        self._previous, self._latest = self._latest, output
-        return output
-
-    def _interpolate(self) -> list[Detection]:
-        """Coast tracked boxes linearly between the last two YOLO results."""
-        if not self._latest:
-            return []
-        predictions = []
-        for current in self._latest:
-            prior = next((item for item in self._previous if item.track_id == current.track_id), None)
-            if prior is None:
-                predictions.append(current)
-                continue
-            delta = tuple(current.xyxy[index] - prior.xyxy[index] for index in range(4))
-            predictions.append(Detection(current.cls, current.conf,
-                                         tuple(current.xyxy[index] + delta[index] / 2 for index in range(4)),
-                                         current.track_id))
-        return predictions
+        self._previous = detections
+        return detections

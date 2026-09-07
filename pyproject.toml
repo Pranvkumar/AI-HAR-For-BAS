@@ -1,24 +1,44 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aegis-har"
-version = "1.0.0"
-description = "AI Human Activity Recognition for on-board BAS experiments (SIH 26174)"
-requires-python = ">=3.10"
+name = "har"
+version = "0.1.0"
+description = "AI Human Activity Recognition (HAR) system for astronaut BAS experiments"
 readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ultralytics>=8.2.0",          # YOLOv11
+    "mediapipe>=0.10.14",          # Hand/body tracking
+    "transitions>=0.9.1",          # FSM
+    "pyttsx3>=2.98",               # TTS (CPU)
+    "opencv-python>=4.10.0",       # Video/frame handling
+    "numpy>=1.26.0",               # Frame and augmentation operations
+    "onnxruntime>=1.18.0",         # Portable future inference backend
+    "fastapi>=0.112.0",            # Streaming API
+    "uvicorn>=0.30.0",             # ASGI server
+    "streamlit>=1.38.0",           # GUI dashboard
+    "pydantic>=2.8.0",             # Config validation
+    "pyyaml>=6.0.1",               # YAML config
+    "pytest>=8.2.0",               # Testing
+    "black>=24.8.0",               # Formatting
+]
 
-[project.scripts]
-aegis = "aegis.gui.app:main"
-aegis-calibrate = "aegis.tools.calibrate:main"
-aegis-record = "aegis.tools.record_dataset:main"
-aegis-train = "aegis.tools.train_action_model:main"
-aegis-doctor = "aegis.tools.diagnostics:main"
+[project.optional-dependencies]
+dev = [
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.23.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["har*"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+extend-exclude = "models/"
+
+# NOTE: Exact version pins should be finalized after Phase 1 model export testing
+# with the specific TensorRT/cuda version on the target hardware.

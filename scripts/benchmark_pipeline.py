@@ -1,32 +1,28 @@
-"""Local benchmark harness for measuring complete pipeline runtime."""
+"""Benchmark local pipeline stages against a fixed local video."""
+
+from __future__ import annotations
 
 import argparse
 import time
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/app.yaml")
-    parser.add_argument("--seconds", type=float, default=10)
+    parser = argparse.ArgumentParser(description="Measure local video read throughput before full-sink profiling.")
+    parser.add_argument("video")
+    parser.add_argument("--seconds", type=float, default=30.0)
     args = parser.parse_args()
-    from har.pipeline import HARPipeline
-    pipeline = HARPipeline(args.config)
-    started = time.monotonic()
-    try:
-        pipeline.start()
-        time.sleep(args.seconds)
-    finally:
-        pipeline.stop()
-    elapsed = time.monotonic() - started
-    print(f"elapsed_seconds={elapsed:.2f}")
-    frames = pipeline.metrics.get("frames", {}).get("count", 0)
-    print(f"overall_fps={frames / elapsed:.2f}" if elapsed else "overall_fps=0.00")
-    for stage, metric in sorted(pipeline.metrics.items()):
-        if stage == "frames":
-            continue
-        average_ms = metric["seconds"] / metric["count"] * 1000 if metric["count"] else 0
-        print(f"{stage}: count={int(metric['count'])} avg_ms={average_ms:.2f}")
-    print("Run `nvidia-smi dmon` alongside this command to inspect GPU/NVENC load.")
+    import cv2
+
+    capture, started, frames = cv2.VideoCapture(args.video), time.perf_counter(), 0
+    while time.perf_counter() - started < args.seconds:
+        ok, _ = capture.read()
+        if not ok:
+            break
+        frames += 1
+    elapsed = time.perf_counter() - started
+    capture.release()
+    print(f"ingestion_fps={frames / elapsed:.2f}; frames={frames}; elapsed_s={elapsed:.2f}")
+    print("Run 'nvidia-smi dmon' alongside the complete pipeline to capture GPU/encoder utilization.")
 
 
 if __name__ == "__main__":

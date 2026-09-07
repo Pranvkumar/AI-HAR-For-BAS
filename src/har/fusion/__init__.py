@@ -1,1 +1,1 @@
-"""Relational hand-object interaction and event fusion."""
+"""Future hand-object interaction inference package."""

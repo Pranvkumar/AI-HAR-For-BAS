@@ -1,1 +1,1 @@
-"""Config-driven, fault-tolerant experiment protocol state machine."""
+"""Future protocol-driven state-machine package."""

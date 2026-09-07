@@ -1,90 +1,138 @@
-# AEGIS AI-HAR for BAS
+# AI HAR for Astronaut BAS Experiments
 
-AEGIS is an offline, safety-aware assistant for validating astronaut payload
-procedures. This repository now contains the consolidated AEGIS runtime:
-MediaPipe hands, optional GPU object detection, object tracking, relational
-containment evidence, temporal recognition, protocol FSM, safe modes, audit
-logging, recording, voice alerts, and the live mission console.
+This repository implements a local Human Activity Recognition prototype for SIH
+2026 Problem Statement 26174: **AI Human Activity Recognition for On-board BAS
+Experiments**. It supports astronauts carrying out predefined procedures in
+microgravity by validating a sequence of visible actions without continuous
+ground communication.
 
-## Quick Start
+## Hardware target
 
-From PowerShell:
+The demonstration target is a Lenovo Legion laptop with an NVIDIA RTX 4060, 8 GB of VRAM, and NVENC. The design will remain portable to future space-grade edge hardware and must function offline.
 
-```powershell
-cd C:\SIH\AI-HAR-For-BAS
-$env:PYTHONPATH = "src"
-.venv\Scripts\python.exe -m aegis.gui.app
+## Project orientation
+
+The `src/har/` package is organized around ingestion, vision, hand-object fusion, protocol state management, configuration, and independent output sinks. The YAML files in `configs/` contain the deployment defaults and must be customized with the approved experiment procedure and local model path.
+
+## Tests
+
+Create a Python 3.10+ virtual environment, install the project dependencies, then run the test suite:
+
+```bash
+pip install -e .
+pytest
 ```
 
-Or double-click `START.bat` in the repository folder. To run silently without
-voice instructions or voice alerts:
+## Local run
 
-```powershell
-.venv\Scripts\python.exe -m aegis.gui.app --no-voice
+This repository includes the offline inference models in `models/`. The default configuration uses the bundled YOLO weights and MediaPipe gesture model, so no model download is required. Then run:
+
+```bash
+python scripts/run_pipeline.py --config configs/app.yaml --source path/to/local-video.mp4
 ```
 
-You can also start silently with the launcher:
+For Windows setup and camera instructions, see [`RUN_INSTRUCTIONS.md`](RUN_INSTRUCTIONS.md).
 
-```powershell
-START.bat --no-voice
+It records an annotated MP4, writes JSON Lines telemetry, and serves an MJPEG stream at `http://127.0.0.1:8000/stream`. In a second terminal, start the local dashboard:
+
+```bash
+streamlit run src/har/outputs/gui/dashboard.py
 ```
 
-To disable voice by default, set this in `configs/app.yaml`:
+## Immediate offline demo
 
-```yaml
-voice_enabled: false
+Run the complete local output and protocol path without a camera, model weights, or
+network access:
+
+```bash
+python scripts/run_sih_demo.py
 ```
 
-Run diagnostics with:
+This creates `demo-output/har-demo.mp4` and a JSONL telemetry file using a clearly
+labelled synthetic protocol. It is a technical demonstration only, not an approved
+astronaut procedure.
 
-```powershell
-.venv\Scripts\python.exe -m aegis.tools.diagnostics
+## ByteTrack smoke test
+
+The vision layer uses Ultralytics' built-in ByteTrack support. Test it with a
+local stock YOLO model and a local video file:
+
+```bash
+python scripts/run_bytetrack.py --model path/to/yolo11n.pt --source path/to/video.mp4
 ```
 
-Run tests with:
+This writes `recordings/bytetrack/tracked.mp4` with object IDs. A stock model
+validates tracking only; it cannot recognize the project-specific outer container
+or inner boxes until the custom model is trained.
 
-```powershell
-$env:PYTHONPATH = "src"
-.venv\Scripts\python.exe -m pytest -q
+## Hand gesture recognition
+
+For robust, detailed hand input, this project also supports MediaPipe Gesture
+Recognizer alongside YOLO/ByteTrack. The official model is bundled at
+`models/gesture_recognizer.task`. It recognizes `Closed_Fist`, `Open_Palm`,
+`Pointing_Up`, `Thumb_Down`, `Thumb_Up`, `Victory`, and `ILoveYou`, and provides
+21 landmarks per hand. Download its official model once during setup:
+
+```bash
+python -m pip install mediapipe
+python scripts/download_gesture_model.py
+python scripts/run_gesture_demo.py --source 0
 ```
 
-## Project Layout
+The model is included for offline handoff and inference runs locally afterwards.
+Use the landmark information for grasp/contact logic; reserve gesture labels for
+clear deliberate actions such as confirmation or stop signals.
 
-- `src/aegis/` is the maintained runtime and training integration.
-- `configs/` contains the app and experiment protocol configuration.
-- `datasets/objects/` is the local YOLO dataset location. Private images are
-	intentionally excluded from Git.
-- `tests/` contains hardware-free detector, tracking, fusion, safety, and
-	protocol tests.
+## SIH visible-box baseline
 
-The older `src/har/` implementation remains for reference during migration;
-new work should use `aegis`.
+The available SIH statement specifies a synthetic sample experiment with an
+outer box containing a red inner box and a second coloured inner box. The
+official text visible to us does not show the second colour or full sequence, so
+the active baseline uses `second_colored_box` rather than guessing it.
 
-## Training
+It validates this conservative procedure entirely through relative observations:
 
-The RTX 4050 laptop is usually the simplest option for repeated experiments:
+1. Retrieve the red box from the outer container.
+2. Retrieve the second coloured box.
+3. Return the red box.
+4. Return the second coloured box.
 
-```powershell
-cd C:\path\to\AI-HAR-For-BAS
-.\INSTALL.bat
-.\TRAIN_OBJECTS.bat grab
-.\TRAIN_OBJECTS.bat autolabel
-# Review labels, then:
-.\TRAIN_OBJECTS.bat split
-.\TRAIN_OBJECTS.bat train --device auto --epochs 80
-.\TRAIN_OBJECTS.bat export
-.\TRAIN_OBJECTS.bat check
+The classes, sequence, debounce settings, and safety handling are all in
+`configs/protocol.yaml`; edit the YAML once ISRO/SIH publishes the remaining
+details. The separate biological-fluid mock is retained only as a technical
+reference in `configs/mock_biological_fluid_protocol.yaml`.
+
+## Training preparation
+
+The active SIH box dataset is ready in `data/sih_box_experiment/`, with
+`outer_container`, `red_box`, `second_colored_box`, and `astronaut_hand`
+classes. Capture local source images with:
+
+```bash
+python scripts/capture_dataset.py --class-name red_box
 ```
 
-`--device auto` selects CUDA when PyTorch can see it and otherwise falls back
-to CPU.
+Capture each class from varied angles, distances, lighting, and occlusion. Then
+annotate every image with its bounding boxes in a local annotation tool, saving YOLO
+`.txt` labels under the matching `labels/train` or `labels/val` directory. Use
+`scripts/augment_check.py` to verify full-orientation augmentation and export a
+trained local `best.pt` with `scripts/export_engine.py`.
 
-## Development and Tests
+### Collecting friends' photos
 
-```powershell
-$env:PYTHONPATH = "src"
-python -m pytest -q
+Share `scripts/contribute_images.py` with contributors. They place photos of one
+class in a folder and run, for example:
+
+```bash
+python contribute_images.py --class-name red_box --input my-photos --contributor Alice --output alice-red-boxes.zip
 ```
 
-Tests are hardware-free and do not require a camera or trained weights. Start
-the operator console with `START.bat` after installing the runtime dependencies.
+They send you the resulting ZIP. Import it without extracting untrusted files:
+
+```bash
+python scripts/import_contributions.py alice-vials.zip
+```
+
+The images arrive in `data/incoming_annotations/`; they must be annotated before
+they can be used to train YOLO. Contributors should only send images they created
+or have permission to share.

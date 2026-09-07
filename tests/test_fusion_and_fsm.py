@@ -1,132 +1,71 @@
-from har.config.loader import ProtocolConfig, ProtocolStep
-from har.fsm.protocol_fsm import ProtocolFSM, ViolationEvent
-from har.fusion.interaction_engine import InteractionEvent
+"""Synthetic relational interaction and protocol fault-tolerance tests."""
+
+from __future__ import annotations
+
+from har.config.models import ProtocolConfig
+from har.events import InteractionEvent, ViolationEvent
+from har.fsm.protocol_fsm import ProtocolFSM
+from har.fusion.interaction_engine import InteractionEngine
+from har.events import Detection, HandLandmark, HandState
+from har.vision.gesture_recognizer import RecognizedGesture
 
 
-def event(object_name, state, timestamp, confidence=0.9):
-    return InteractionEvent("right", object_name, 1, state, timestamp, confidence, 0.2)
+def event(time_s: float, evidence: str) -> InteractionEvent:
+    object_class, interaction = evidence.split(":")
+    return InteractionEvent(time_s, "left", object_class, 1, interaction, interaction == "grasp", 0.5)
 
 
-def protocol(safety=False):
-    return ProtocolConfig(
-        [
-            ProtocolStep(1, "pick", {"object": "vial", "state": "grasp_start"}, 10),
-            ProtocolStep(
-                2, "attach", {"object": "slot", "state": "contact"}, 10, safety
-            ),
-            ProtocolStep(3, "seal", {"object": "cap", "state": "contact"}, 10),
-        ],
-        debounce_frames=2,
-        lookback_window_s=5,
+def protocol() -> ProtocolConfig:
+    return ProtocolConfig.model_validate({"debounce_frames": 2, "steps": [
+        {"id": "a", "name": "A", "expects": ["a:grasp"], "timeout_s": 5, "safety_critical": False},
+        {"id": "b", "name": "B", "expects": ["b:grasp"], "timeout_s": 5, "safety_critical": False},
+        {"id": "c", "name": "C", "expects": ["c:grasp"], "timeout_s": 5, "safety_critical": True},
+        {"id": "d", "name": "D", "expects": ["d:grasp"], "timeout_s": 5, "safety_critical": False},
+    ]})
+
+
+def test_normal_in_order_completion_and_debounce() -> None:
+    fsm = ProtocolFSM(protocol())
+    assert not fsm.handle(event(0, "a:grasp"))
+    assert fsm.current_step == "PENDING_CONFIRMATION"
+    fsm.handle(event(0.1, "a:grasp"))
+    fsm.handle(event(0.2, "b:grasp")); fsm.handle(event(0.3, "b:grasp"))
+    fsm.handle(event(0.4, "c:grasp")); fsm.handle(event(0.5, "c:grasp"))
+    fsm.handle(event(0.6, "d:grasp")); fsm.handle(event(0.7, "d:grasp"))
+    assert fsm.current_step == "COMPLETE"
+
+
+def test_noncritical_skip_is_logged_without_blocking() -> None:
+    fsm = ProtocolFSM(protocol())
+    emitted = fsm.handle(event(0, "b:grasp"))
+    assert isinstance(emitted[0], ViolationEvent)
+    assert not fsm.blocked
+
+
+def test_safety_critical_skip_blocks() -> None:
+    fsm = ProtocolFSM(protocol())
+    emitted = fsm.handle(event(0, "d:grasp"))
+    assert isinstance(emitted[0], ViolationEvent)
+    assert fsm.blocked
+
+
+def test_retroactive_lookahead_backfills_middle_step() -> None:
+    fsm = ProtocolFSM(protocol())
+    fsm.handle(event(0, "a:grasp")); fsm.handle(event(0.1, "a:grasp"))
+    fsm.handle(event(0.2, "c:grasp"))
+    fsm.handle(event(0.3, "d:grasp"))
+    assert fsm.current_step == "COMPLETE"
+
+
+def test_closed_fist_gesture_reinforces_hand_object_grasp() -> None:
+    landmarks = tuple(HandLandmark(0.1, 0.1) for _ in range(21))
+    landmarks = landmarks[:4] + (HandLandmark(0.1, 0.1),) + landmarks[5:8] + (HandLandmark(0.9, 0.9),) + landmarks[9:]
+    hand_state = HandState(1.0, {"left": landmarks, "right": ()})
+    events = InteractionEngine().process(
+        hand_state,
+        [Detection("red_box", 0.9, (0, 0, 100, 100), 1)],
+        (100, 100),
+        [RecognizedGesture("Left", "Closed_Fist", 0.95)],
     )
-
-
-def test_normal_in_order_completion():
-    machine = ProtocolFSM(protocol())
-    assert machine.process(event("vial", "grasp_start", 1)) == []
-    result = machine.process(event("vial", "grasp_start", 2))
-    assert machine.completed == [1]
-    assert result[0].step_id == 1
-
-
-def test_lookahead_backfills_missed_middle_step():
-    machine = ProtocolFSM(protocol())
-    machine.process(event("vial", "grasp_start", 1))
-    machine.process(event("vial", "grasp_start", 2))
-    machine.process(event("slot", "contact", 3))
-    result = machine.process(event("cap", "contact", 4))
-    assert machine.completed == [1, 2, 3]
-    assert "look-ahead" in result[0].message
-
-
-def test_unconfirmed_safety_step_blocks_on_later_evidence():
-    machine = ProtocolFSM(protocol(safety=True))
-    machine.process(event("vial", "grasp_start", 1))
-    machine.process(event("vial", "grasp_start", 2))
-    result = machine.process(event("cap", "contact", 3))
-    assert isinstance(result[0], ViolationEvent)
-    assert result[0].blocked is True
-    assert machine.state == "BLOCKED"
-
-
-def test_debounce_absorbs_flicker():
-    machine = ProtocolFSM(protocol())
-    assert machine.process(event("vial", "grasp_start", 1)) == []
-    assert machine.process(event("vial", "open", 1.1)) == []
-    assert machine.process(event("vial", "grasp_start", 1.2)) == []
-    assert machine.completed == []
-
-
-def microgravity_protocol():
-    return ProtocolConfig(
-        [
-            ProtocolStep(
-                1,
-                "open",
-                {"object": "container_lid", "state": "contact"},
-                20,
-                False,
-                ("red_box", "blue_box"),
-                "Warning: State mismatch. Please ensure the main container is fully open.",
-            ),
-            ProtocolStep(
-                2,
-                "red",
-                {"object": "red_box_pair", "state": "contact"},
-                45,
-                False,
-                ("blue_box", "blue_box_stack"),
-                "Warning: Sequence violation. Please extract and place both red boxes first.",
-            ),
-            ProtocolStep(
-                3,
-                "blue",
-                {"object": "blue_box_stack", "state": "contact"},
-                45,
-                True,
-                ("blue_box",),
-                "Warning: Spatial error. The blue box must be stacked directly on top of the red box.",
-            ),
-            ProtocolStep(
-                4,
-                "close",
-                {"object": "container_lid", "state": "contact"},
-                20,
-            ),
-        ],
-        debounce_frames=1,
-        lookback_window_s=5,
-    )
-
-
-def test_sequence_error_blue_before_red_boxes():
-    machine = ProtocolFSM(microgravity_protocol())
-    machine.process(event("container_lid", "contact", 1.0))
-    result = machine.process(event("blue_box", "grasp_start", 2.0))
-    assert isinstance(result[0], ViolationEvent)
-    assert (
-        result[0].message
-        == "Warning: Sequence violation. Please extract and place both red boxes first."
-    )
-
-
-def test_spatial_error_blue_not_stacked():
-    machine = ProtocolFSM(microgravity_protocol())
-    machine.process(event("container_lid", "contact", 1.0))
-    machine.process(event("red_box_pair", "contact", 2.0))
-    result = machine.process(event("blue_box", "contact", 3.0))
-    assert isinstance(result[0], ViolationEvent)
-    assert (
-        result[0].message
-        == "Warning: Spatial error. The blue box must be stacked directly on top of the red box."
-    )
-
-
-def test_state_error_extract_before_lid_open():
-    machine = ProtocolFSM(microgravity_protocol())
-    result = machine.process(event("red_box", "grasp_start", 1.0))
-    assert isinstance(result[0], ViolationEvent)
-    assert (
-        result[0].message
-        == "Warning: State mismatch. Please ensure the main container is fully open."
-    )
+    assert events[0].grasped
+    assert events[0].interaction == "grasp"

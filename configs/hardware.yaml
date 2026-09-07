@@ -1,5 +1,4 @@
-device: auto
-yolo_backend: auto
-frame_skip_enabled: false
-frame_skip: 1
-use_nvenc: true
+# Hardware configuration placeholder. Populate for the target camera and accelerator.
+camera: {}
+inference: {}
+encoding: {}

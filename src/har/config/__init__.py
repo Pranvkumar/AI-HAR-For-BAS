@@ -1,1 +1,1 @@
-"""Load and validate YAML experiment configuration."""
+"""Future YAML configuration loading and Pydantic validation package."""

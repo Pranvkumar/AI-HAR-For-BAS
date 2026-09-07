@@ -1,0 +1,39 @@
+# Earlier technical mock retained for reference; not the active SIH baseline.
+debounce_frames: 3
+pending_window_s: 1.0
+lookback_window_s: 2.0
+anomaly_messages:
+  centrifuge_lid:closed_empty: "Warning: Centrifuge is empty. Please load the sample vial first."
+steps:
+  - id: retrieve_sample
+    name: Retrieve sample vial from rack
+    expects: [sample_vial:removed_from_rack]
+    timeout_s: 30
+    safety_critical: true
+  - id: retrieve_pipette
+    name: Retrieve reagent pipette
+    expects: [reagent_pipette:grasp]
+    timeout_s: 30
+    safety_critical: false
+  - id: inject_reagent
+    name: Inject reagent into sample vial
+    expects: [reagent_pipette+sample_vial:overlap_2s]
+    timeout_s: 45
+    safety_critical: true
+    violation_message: "Warning: Reagent injection skipped. Please inject reagent before centrifuging."
+    violation_short_message: "Inject reagent before centrifuging."
+  - id: stow_pipette
+    name: Return reagent pipette to rack
+    expects: [reagent_pipette:stowed_in_rack]
+    timeout_s: 30
+    safety_critical: false
+  - id: load_centrifuge
+    name: Load sample vial into centrifuge
+    expects: [sample_vial:inside_centrifuge_slot]
+    timeout_s: 30
+    safety_critical: true
+  - id: secure_centrifuge
+    name: Close centrifuge lid
+    expects: [centrifuge_lid:closed_over_centrifuge_slot]
+    timeout_s: 20
+    safety_critical: true

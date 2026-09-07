@@ -1,159 +1,95 @@
-"""Protocol FSM with debounce, pending evidence, look-ahead, and safety gates."""
+"""Fault-tolerant, config-driven protocol finite-state machine."""
 
-from dataclasses import dataclass
-from collections import deque
-from typing import Any
+from __future__ import annotations
 
-from har.config.loader import ProtocolConfig, ProtocolStep
-from har.fusion.interaction_engine import InteractionEvent
+from collections import Counter, deque
+from typing import Callable
 
+from transitions import Machine
 
-@dataclass(frozen=True)
-class FSMTransitionEvent:
-    from_step: int | str | None
-    to_step: int | str | None
-    step_id: int | str
-    timestamp: float
-    message: str
+from har.config.models import ProtocolConfig
+from har.events import FSMTransitionEvent, InteractionEvent, ViolationEvent
 
-
-@dataclass(frozen=True)
-class ViolationEvent:
-    step_id: int | str
-    timestamp: float
-    message: str
-    safety_critical: bool
-    blocked: bool
-    short_message: str = ""
+Event = FSMTransitionEvent | ViolationEvent
 
 
 class ProtocolFSM:
-    def __init__(self, protocol: ProtocolConfig) -> None:
-        self.protocol = protocol
-        self.index = 0
-        self.pending_count = 0
-        self.state = "PENDING_CONFIRMATION"
-        self.history: deque[InteractionEvent] = deque()
-        self.completed: list[int | str] = []
+    """Confirm ordered protocol evidence while tolerating transient ambiguity."""
 
-    def _violation(
-        self,
-        step: ProtocolStep,
-        event: InteractionEvent,
-        fallback: str,
-        *,
-        blocked: bool,
-    ) -> ViolationEvent:
-        message = step.violation_message or fallback
-        return ViolationEvent(
-            step.id,
-            event.timestamp,
-            message,
-            message,
-            step.safety_critical,
-            blocked,
-        )
+    def __init__(self, config: ProtocolConfig, publish: Callable[[Event], None] | None = None) -> None:
+        self.config, self.publish = config, publish or (lambda _event: None)
+        self.index = 0
+        self.blocked = False
+        self._counts: Counter[str] = Counter()
+        self._lookback: deque[InteractionEvent] = deque()
+        states = [step.id for step in config.steps] + ["PENDING_CONFIRMATION", "BLOCKED", "COMPLETE"]
+        self.machine = Machine(model=self, states=states, initial=config.steps[0].id, auto_transitions=False)
 
     @property
-    def current_step(self) -> ProtocolStep | None:
-        return (
-            self.protocol.steps[self.index]
-            if self.index < len(self.protocol.steps)
-            else None
-        )
+    def current_step(self) -> str:
+        """Return the current protocol state."""
 
-    def _matches(self, step: ProtocolStep, event: InteractionEvent) -> bool:
-        return all(
-            getattr(event, key, object()) == value
-            for key, value in step.expects.items()
-        )
+        return self.state
 
-    def _advance(
-        self, event: InteractionEvent, step: ProtocolStep, inferred: bool = False
-    ) -> FSMTransitionEvent:
-        previous = self.current_step.id if self.current_step else None
-        self.completed.append(step.id)
+    def _expected(self, index: int) -> bool:
+        return 0 <= index < len(self.config.steps)
+
+    def _emit(self, event: Event) -> Event:
+        self.publish(event)
+        return event
+
+    def _advance(self, timestamp_s: float) -> FSMTransitionEvent:
+        old = self.config.steps[self.index]
         self.index += 1
-        self.pending_count = 0
-        self.state = "COMPLETE" if self.current_step is None else "PENDING_CONFIRMATION"
-        return FSMTransitionEvent(
-            previous,
-            self.current_step.id if self.current_step else None,
-            step.id,
-            event.timestamp,
-            f"Completed step {step.id}"
-            + (" by look-ahead recovery" if inferred else ""),
-        )
+        next_id = "COMPLETE" if self.index == len(self.config.steps) else self.config.steps[self.index].id
+        self.machine.set_state(next_id, self)
+        self._counts.clear()
+        return self._emit(FSMTransitionEvent(timestamp_s, old.id, next_id, f"Completed: {old.name}", f"Completed {old.name}"))
 
-    def process(
-        self, event: InteractionEvent
-    ) -> list[FSMTransitionEvent | ViolationEvent]:
-        """Process one event without blocking on ambiguous or non-critical evidence."""
-        self.history.append(event)
-        cutoff = event.timestamp - self.protocol.lookback_window_s
-        while self.history and self.history[0].timestamp < cutoff:
-            self.history.popleft()
-        step = self.current_step
-        if step is None:
+    def _has_recent_evidence(self, step_index: int, now: float) -> bool:
+        if not self._expected(step_index):
+            return False
+        expected = set(self.config.steps[step_index].expects)
+        return any(now - item.timestamp_s <= self.config.lookback_window_s and item.evidence in expected for item in self._lookback)
+
+    def handle(self, event: InteractionEvent) -> list[Event]:
+        """Consume one interaction event and return emitted state/violation events."""
+
+        if self.blocked or self.current_step == "COMPLETE":
             return []
-        if self._matches(step, event):
-            self.pending_count += 1
-            if self.pending_count >= self.protocol.debounce_frames:
-                return [self._advance(event, step)]
+        self._lookback.append(event)
+        while self._lookback and event.timestamp_s - self._lookback[0].timestamp_s > self.config.lookback_window_s:
+            self._lookback.popleft()
+        if event.evidence in self.config.anomaly_messages:
+            message = self.config.anomaly_messages[event.evidence]
+            return [self._emit(ViolationEvent(event.timestamp_s, message, message, True, self.config.steps[self.index].id))]
+        expected = self.config.steps[self.index]
+        if event.evidence in expected.expects:
+            self._counts[event.evidence] += 1
+            if self._counts[event.evidence] >= self.config.debounce_frames:
+                return [self._advance(event.timestamp_s)]
+            self.machine.set_state("PENDING_CONFIRMATION", self)
             return []
-
-        if step.watch_objects and event.object in step.watch_objects:
-            self.pending_count = 0
-            return [
-                self._violation(
-                    step,
-                    event,
-                    f"Unexpected action while waiting for step {step.id}",
-                    blocked=False,
-                )
-            ]
-
-        self.pending_count = 0
-        later_index = next(
-            (
-                position
-                for position, candidate in enumerate(
-                    self.protocol.steps[self.index + 1 :], self.index + 1
-                )
-                if self._matches(candidate, event)
-            ),
-            None,
-        )
-        if later_index is not None:
-            evidence = list(self.history)
-            missing = self.protocol.steps[self.index : later_index]
-            if all(
-                any(self._matches(candidate, prior) for prior in evidence[:-1])
-                for candidate in missing
-            ):
-                transitions = []
-                for candidate in missing:
-                    transitions.append(self._advance(event, candidate, inferred=True))
-                return transitions + [
-                    self._advance(event, self.current_step, inferred=False)
-                ]
-            if step.safety_critical:
-                self.state = "BLOCKED"
-                return [
-                    self._violation(
-                        step,
-                        event,
-                        f"Safety-critical step {step.id} was not confirmed",
-                        blocked=True,
-                    )
-                ]
-            self.index = later_index
-            self.pending_count = 0
-            violation = self._violation(
-                step,
-                event,
-                f"Step {step.id} was not confirmed; continuing",
-                blocked=False,
+        self.machine.set_state(expected.id, self)
+        for future_index in range(self.index + 1, len(self.config.steps)):
+            if event.evidence not in self.config.steps[future_index].expects:
+                continue
+            skipped = list(range(self.index, future_index))
+            recoverable = future_index == self.index + 2 and self._has_recent_evidence(self.index + 1, event.timestamp_s)
+            if recoverable:
+                self.index = future_index
+                self.machine.set_state(self.config.steps[self.index].id, self)
+                return [self._advance(event.timestamp_s)]
+            critical = any(self.config.steps[item].safety_critical for item in skipped)
+            violated_step = next(
+                (self.config.steps[item] for item in skipped if self.config.steps[item].violation_message),
+                next((self.config.steps[item] for item in skipped if self.config.steps[item].safety_critical), expected),
             )
-            return [violation, self._advance(event, self.current_step)]
+            message = violated_step.violation_message or f"Out-of-order evidence: {event.evidence}"
+            short_message = violated_step.violation_short_message or "Protocol order issue"
+            violation = self._emit(ViolationEvent(event.timestamp_s, message, short_message, critical, expected.id))
+            if critical:
+                self.blocked = True
+                self.machine.set_state("BLOCKED", self)
+            return [violation]
         return []

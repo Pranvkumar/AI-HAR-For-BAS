@@ -1,33 +1,35 @@
-"""Visualize full-rotation augmentation for a sample image."""
+"""Create a contact sheet showing full-orientation augmentation candidates."""
+
+from __future__ import annotations
 
 import argparse
-import importlib
 from pathlib import Path
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Visualize 0–360 degree image rotations.")
     parser.add_argument("image", type=Path)
-    parser.add_argument("--output", type=Path, default=Path("rotation_check.jpg"))
+    parser.add_argument("--output", type=Path, default=Path("augmentation_check.jpg"))
+    parser.add_argument("--samples", type=int, default=12)
     args = parser.parse_args()
-    cv2 = importlib.import_module("cv2")
+    import cv2
+    import numpy as np
 
     image = cv2.imread(str(args.image))
     if image is None:
         raise FileNotFoundError(args.image)
     height, width = image.shape[:2]
-    canvas = cv2.copyMakeBorder(
-        image, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=(24, 24, 24)
-    )
+    center = (width / 2, height / 2)
     tiles = []
-    for angle in range(0, 360, 45):
-        matrix = cv2.getRotationMatrix2D((width / 2 + 20, height / 2 + 20), angle, 1.0)
-        tiles.append(cv2.warpAffine(canvas, matrix, (width + 40, height + 40)))
-    cv2.imwrite(str(args.output), cv2.hconcat(tiles[:4]))
-    cv2.imwrite(
-        str(args.output.with_name(args.output.stem + "_2" + args.output.suffix)),
-        cv2.hconcat(tiles[4:]),
-    )
+    for angle in np.linspace(0, 360, args.samples, endpoint=False):
+        matrix = cv2.getRotationMatrix2D(center, float(angle), 1.0)
+        tile = cv2.warpAffine(image, matrix, (width, height), borderMode=cv2.BORDER_REFLECT)
+        cv2.putText(tile, f"{angle:.0f} deg", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        tiles.append(tile)
+    columns = 4
+    while len(tiles) % columns:
+        tiles.append(np.zeros_like(image))
+    cv2.imwrite(str(args.output), np.vstack([np.hstack(tiles[index:index + columns]) for index in range(0, len(tiles), columns)]))
 
 
 if __name__ == "__main__":

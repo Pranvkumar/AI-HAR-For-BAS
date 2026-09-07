@@ -1,1 +1,1 @@
-"""Streamlit monitoring dashboard."""
+"""Future Streamlit monitoring-dashboard package."""

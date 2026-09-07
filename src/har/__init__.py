@@ -1,1 +1,1 @@
-"""Offline human activity recognition pipeline for BAS experiments."""
+"""Offline human activity recognition package for astronaut experiment support."""

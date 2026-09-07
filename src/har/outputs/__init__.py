@@ -1,1 +1,1 @@
-"""Non-blocking telemetry, audio, video, streaming, and GUI sinks."""
+"""Future non-blocking output-sink package."""

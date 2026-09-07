@@ -1,1 +1,1 @@
-"""Camera frame capture and timestamped ingestion queues."""
+"""Future camera-frame capture thread package."""

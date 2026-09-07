@@ -1,1 +1,1 @@
-"""YOLO object detection and CPU hand tracking adapters."""
+"""Future YOLO detection and MediaPipe tracking wrapper package."""

@@ -1,17 +1,45 @@
+# Python
 __pycache__/
 *.py[cod]
+*.so
 .pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+test-artifacts*/
+
+# Environments and tooling
 .venv/
-dist/
+venv/
+env/
+.env
+
+# Packaging
 build/
+dist/
 *.egg-info/
+
+# Model artefacts
+models/
 *.pt
 *.engine
 *.onnx
-*.mp4
+
+# Bundled offline inference models
+!models/
+!models/gesture_recognizer.task
+!models/exported/
+!models/exported/best.pt
+
+# Runtime output
 logs/
-outputs/
-runs/
-models/objects/
-models/voice/
-models/exported/
+recordings/
+demo-output*/
+*.mp4
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

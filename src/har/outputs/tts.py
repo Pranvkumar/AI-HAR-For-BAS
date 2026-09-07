@@ -1,44 +1,60 @@
-"""Offline queue-backed text-to-speech worker."""
+"""Non-blocking offline text-to-speech worker."""
 
-import importlib
+from __future__ import annotations
+
 import logging
 import queue
 import threading
-from typing import Any, Callable
+from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
 
 class TTSWorker:
-    def __init__(self, engine_factory: Callable[[], Any] | None = None) -> None:
-        self.alert_queue: queue.Queue[Any] = queue.Queue()
-        self.engine_factory = engine_factory or (lambda: importlib.import_module("pyttsx3").init())
-        self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self._run, name="tts", daemon=True)
+    """Speak short event messages on a dedicated CPU-only worker thread."""
+
+    def __init__(self, backend: str = "pyttsx3") -> None:
+        if backend not in {"pyttsx3", "piper"}:
+            raise ValueError("backend must be 'pyttsx3' or 'piper'")
+        self.backend = backend
+        self.alert_queue: queue.Queue[Any | None] = queue.Queue()
+        self._thread = threading.Thread(target=self._run, name="tts-worker", daemon=True)
 
     def start(self) -> None:
-        self.thread.start()
+        """Start the TTS worker."""
 
-    def submit(self, event: Any) -> None:
-        self.alert_queue.put(event)
+        self._thread.start()
+
+    def publish(self, event: Any) -> None:
+        """Queue an alert without blocking protocol processing."""
+
+        self.alert_queue.put_nowait(event)
+
+    def _speak(self, message: str) -> None:
+        if self.backend == "piper":
+            LOGGER.warning("Piper backend is configured but not yet provisioned; alert logged: %s", message)
+            return
+        import pyttsx3
+
+        engine = pyttsx3.init()
+        engine.say(message)
+        engine.runAndWait()
 
     def _run(self) -> None:
-        try:
-            engine = self.engine_factory()
-        except Exception:
-            LOGGER.exception("TTS engine initialization failed")
-            return
-        while not self.stop_event.is_set() or not self.alert_queue.empty():
-            try:
-                event = self.alert_queue.get(timeout=0.1)
-            except queue.Empty:
+        while True:
+            event = self.alert_queue.get()
+            if event is None:
+                return
+            message = getattr(event, "short_message", None)
+            if not message:
                 continue
             try:
-                engine.say(getattr(event, "short_message", None) or getattr(event, "message", str(event)))
-                engine.runAndWait()
+                self._speak(str(message))
             except Exception:
-                LOGGER.exception("TTS playback failed")
+                LOGGER.exception("TTS failed stage=tts")
 
-    def stop(self) -> None:
-        self.stop_event.set()
-        self.thread.join(timeout=2)
+    def close(self, timeout_s: float = 2.0) -> None:
+        """Stop after the current alert."""
+
+        self.alert_queue.put(None)
+        self._thread.join(timeout_s)

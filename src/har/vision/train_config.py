@@ -1,12 +1,29 @@
-"""Dataset notes for the Phase 1 Ultralytics training run."""
+"""Documentation constants for the future custom tool-detection training dataset."""
 
-DATASET_LAYOUT = """
-dataset/
-  images/{train,val}/       # fixed-camera experiment frames
-  labels/{train,val}/       # YOLO txt: class_id x_center y_center width height
-  data.yaml                # path, train, val, and names
+from __future__ import annotations
+
+from pathlib import Path
+
+DATASET_ROOT = Path("data/sih_box_experiment")
+EXPECTED_LAYOUT = """data/sih_box_experiment/
+├── images/train, images/val
+├── labels/train, labels/val
+└── data.yaml
 """
-
-# TODO: replace with the annotated BAS class names before training.
-CLASS_NAMES: list[str] = []
-ROTATION_AUGMENTATION_DEGREES = 360
+DATA_YAML_TEMPLATE = """path: data/sih_box_experiment
+train: images/train
+val: images/val
+names:
+  0: outer_container
+  1: red_box
+  2: second_colored_box
+  # astronaut_hand is handled by MediaPipe; include it only if YOLO hand fallback is desired.
+  3: astronaut_hand
+"""
+ROTATION_DEGREES = 360
+OBJECT_CLASSES = (
+    "outer_container",
+    "red_box",
+    "second_colored_box",
+    "astronaut_hand",
+)

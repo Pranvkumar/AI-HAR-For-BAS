@@ -1,156 +1,30 @@
-# =============================================================================
-# EXPERIMENT PROTOCOL  --  edit this file to match YOUR experiment exactly.
-# =============================================================================
-# This is the only file you must change to re-target the system at a different
-# experiment. No Python edits, no retraining of the perception stack.
-#
-# Modelled on the SIH 26174 sample experiment ("a box containing two smaller
-# boxes of colour red and ...").  >>> REPLACE the step list below with the exact
-# wording from the problem statement before your evaluation. <<<
-#
-# FIELD REFERENCE
-#   id                ascending integer, 1..N
-#   name              short label shown on the HUD and in the report
-#   action            the class label the recogniser emits. Use snake_case.
-#                     Reused labels are allowed (e.g. two 'open_box' steps).
-#                     The verb drives the Tier-0 heuristic:
-#                       grasp/pick/retrieve/take/open  -> hand closes
-#                       insert/place/secure/close/press -> hand still in zone
-#                       release/remove/withdraw/stow    -> hand opens
-#   instruction       spoken aloud and shown on screen. Write it as you would
-#                     say it to an astronaut.
-#   zone              name of a calibrated zone (see CALIBRATE_ZONES.bat).
-#                     Omit for steps that can happen anywhere.
-#   object            OPTIONAL. The detector class label the operator should be
-#                     holding for this step. Requires objects_enabled: true and
-#                     a trained model -- see docs/OBJECT_DETECTION.md. When set,
-#                     holding a DIFFERENT detected object actively rejects the
-#                     step; an unseen object is neutral, not a violation.
-#                     Omit for steps where no specific object is manipulated.
-#   hand              any | left | right | both
-#   min_confidence    evidence bar for this step (raise for critical steps)
-#   dwell_s           the action must persist this long before it counts
-#   timeout_s         after this, the system nudges the operator
-#   safety_critical   true  -> skipping it HALTS guidance until recovered
-#                     false -> skipping it logs a warning and continues
-#   allow_manual_skip false blocks the operator's manual skip button
-#   outcome_hint      free text recorded in the report's outcome column
-# =============================================================================
-
-experiment: "BAS Payload - Nested Container Sample Experiment"
-description: >
-  Operator opens the outer container, extracts and opens the red inner box,
-  transfers its contents to the sample tray, seals the red box, and stows
-  everything back in the outer container.
-
-stability_frames: 4
-out_of_sequence_cooldown_s: 3.0
-idle_reminder_s: 25.0
-
+# SIH 26174 baseline — synthetic box-handling experiment.
+# The official problem statement shown to the team identifies a red inner box and
+# a second coloured inner box, but the second colour and full sequence are not
+# visible. Rename second_colored_box when SIH publishes that information.
+debounce_frames: 3
+pending_window_s: 1.0
+lookback_window_s: 2.0
+anomaly_messages:
+  outer_container:completed_before_return: "Warning: Both inner boxes must be returned before completing the experiment."
 steps:
-  - id: 1
-    name: "Open outer container"
-    action: open_outer_box
-    instruction: "Open the outer container lid."
-    zone: outer_box
-    object: outer_container
-    hand: any
-    min_confidence: 0.55
-    dwell_s: 0.5
-    timeout_s: 45
-    safety_critical: false
-    outcome_hint: "lid opened"
-
-  - id: 2
-    name: "Retrieve red box"
-    action: retrieve_red_box
-    instruction: "Take out the red box from the outer container."
-    zone: outer_box
-    object: red_box
-    hand: any
-    min_confidence: 0.58
-    dwell_s: 0.5
-    timeout_s: 40
-    safety_critical: false
-    outcome_hint: "red box in hand"
-
-  - id: 3
-    name: "Place red box on work surface"
-    action: place_red_box
-    instruction: "Place the red box on the work surface."
-    zone: work_surface
-    object: red_box
-    hand: any
-    min_confidence: 0.58
-    dwell_s: 0.5
+  - id: retrieve_red_box
+    name: Retrieve red box from outer container
+    expects: [red_box:removed_from_outer_container]
     timeout_s: 30
-    safety_critical: false
-    outcome_hint: "red box staged"
-
-  - id: 4
-    name: "Open red box"
-    action: open_red_box
-    instruction: "Open the red box."
-    zone: work_surface
-    object: red_box
-    hand: any
-    min_confidence: 0.60
-    dwell_s: 0.6
-    timeout_s: 40
-    safety_critical: false
-    outcome_hint: "red box open"
-
-  - id: 5
-    name: "Transfer sample to tray"
-    action: transfer_sample
-    instruction: "Transfer the sample from the red box into the sample tray."
-    zone: sample_tray
-    object: sample
-    hand: any
-    min_confidence: 0.68
-    dwell_s: 0.7
-    timeout_s: 60
     safety_critical: true
-    allow_manual_skip: false
-    outcome_hint: "sample deposited in tray"
-
-  - id: 6
-    name: "Close red box"
-    action: close_red_box
-    instruction: "Close the red box lid."
-    zone: work_surface
-    object: red_box
-    hand: any
-    min_confidence: 0.62
-    dwell_s: 0.6
-    timeout_s: 40
+  - id: retrieve_second_colored_box
+    name: Retrieve second coloured box from outer container
+    expects: [second_colored_box:removed_from_outer_container]
+    timeout_s: 30
     safety_critical: true
-    allow_manual_skip: false
-    outcome_hint: "red box sealed"
-
-  - id: 7
-    name: "Stow red box"
-    action: stow_red_box
-    instruction: "Return the red box to the outer container."
-    zone: outer_box
-    object: red_box
-    hand: any
-    min_confidence: 0.58
-    dwell_s: 0.5
-    timeout_s: 40
-    safety_critical: false
-    outcome_hint: "red box stowed"
-
-  - id: 8
-    name: "Close outer container"
-    action: close_outer_box
-    instruction: "Close the outer container lid to finish."
-    zone: outer_box
-    object: outer_container
-    hand: any
-    min_confidence: 0.60
-    dwell_s: 0.6
-    timeout_s: 40
+  - id: return_red_box
+    name: Return red box to outer container
+    expects: [red_box:returned_to_outer_container]
+    timeout_s: 30
     safety_critical: true
-    allow_manual_skip: false
-    outcome_hint: "container secured"
+  - id: return_second_colored_box
+    name: Return second coloured box to outer container
+    expects: [second_colored_box:returned_to_outer_container]
+    timeout_s: 30
+    safety_critical: true

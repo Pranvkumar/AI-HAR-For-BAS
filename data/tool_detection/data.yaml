@@ -1,0 +1,10 @@
+path: data/tool_detection
+train: images/train
+val: images/val
+names:
+  0: sample_vial
+  1: reagent_pipette
+  2: rack_holder
+  3: centrifuge_slot
+  4: centrifuge_lid
+  5: astronaut_hand
