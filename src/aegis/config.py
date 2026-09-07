@@ -49,6 +49,11 @@ class AppConfig:
     objects_interval: int = 2             # run detection every Nth frame
     objects_providers: list[str] = field(default_factory=list)  # [] = auto (CUDA then CPU)
 
+    # --- compatibility settings --------------------------------------
+    pipeline: dict = field(default_factory=dict)
+    outputs: dict = field(default_factory=dict)
+    tts: dict = field(default_factory=dict)
+
     # --- recognition ---------------------------------------------------
     action_model_path: str = "models/action/action_model.onnx"
     action_metadata_path: str = "models/action/action_model.meta.json"

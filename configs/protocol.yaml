@@ -10,21 +10,29 @@ anomaly_messages:
 steps:
   - id: retrieve_red_box
     name: Retrieve red box from outer container
+    action: retrieve_red_box
+    instruction: Remove the red box from the outer container.
     expects: [red_box:removed_from_outer_container]
     timeout_s: 30
     safety_critical: true
   - id: retrieve_second_colored_box
     name: Retrieve second coloured box from outer container
+    action: retrieve_second_colored_box
+    instruction: Remove the second coloured box from the outer container.
     expects: [second_colored_box:removed_from_outer_container]
     timeout_s: 30
     safety_critical: true
   - id: return_red_box
     name: Return red box to outer container
+    action: return_red_box
+    instruction: Return the red box to the outer container.
     expects: [red_box:returned_to_outer_container]
     timeout_s: 30
     safety_critical: true
   - id: return_second_colored_box
     name: Return second coloured box to outer container
+    action: return_second_colored_box
+    instruction: Return the second coloured box to the outer container.
     expects: [second_colored_box:returned_to_outer_container]
     timeout_s: 30
     safety_critical: true

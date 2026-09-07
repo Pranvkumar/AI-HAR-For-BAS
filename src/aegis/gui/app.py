@@ -81,7 +81,9 @@ class StepRail(tk.Frame):
             dot = marker.create_oval(4, 8, 14, 18, fill=C.TEXT_FAINT, outline="")
             marker.pack(side="left")
 
-            num = tk.Label(row, text=f"{step['id']:02d}", bg=C.PANEL, fg=C.TEXT_FAINT,
+            step_id = step["id"]
+            step_label = f"{step_id:02d}" if isinstance(step_id, int) else str(step_id)
+            num = tk.Label(row, text=step_label, bg=C.PANEL, fg=C.TEXT_FAINT,
                            font=mono(9), width=3, anchor="w")
             num.pack(side="left")
 

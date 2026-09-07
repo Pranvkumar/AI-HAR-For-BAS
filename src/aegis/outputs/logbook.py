@@ -163,7 +163,11 @@ class Logbook:
         return entry
 
     def _append(self, entry: LogEntry) -> None:
-        step_label = f"{entry.step_id:02d} {entry.step_name}"[:25] if entry.step_id is not None else "-"
+        if entry.step_id is None:
+            step_label = "-"
+        else:
+            formatted_id = f"{entry.step_id:02d}" if isinstance(entry.step_id, int) else str(entry.step_id)
+            step_label = f"{formatted_id} {entry.step_name}"[:25]
         line = COLUMNS.format(
             ts=entry.utc,
             elapsed=self._fmt_elapsed(entry.elapsed_s),

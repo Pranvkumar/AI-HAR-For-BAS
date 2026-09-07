@@ -29,7 +29,7 @@ class ProtocolError(ValueError):
 class Step:
     """One verifiable action in the experiment."""
 
-    id: int
+    id: int | str
     name: str
     action: str
     instruction: str
@@ -45,7 +45,7 @@ class Step:
 
     @property
     def label(self) -> str:
-        return f"{self.id:02d} - {self.name}"
+        return f"{self.id} - {self.name}"
 
 
 @dataclass(frozen=True)
@@ -105,13 +105,13 @@ def _coerce_step(raw: Any, position: int) -> Step:
     missing = [k for k in ("id", "name", "action", "instruction") if k not in raw]
     if missing:
         raise ProtocolError(f"step #{position} missing keys: {missing}")
-    known = set(Step.__dataclass_fields__) | {"object"}
+    known = set(Step.__dataclass_fields__) | {"object", "expects"}
     known.discard("obj")          # YAML spells this field "object"
     unknown = set(raw) - known
     if unknown:
         raise ProtocolError(f"step {raw['id']} has unknown keys: {sorted(unknown)}")
     return Step(
-        id=int(raw["id"]),
+        id=(int(raw["id"]) if str(raw["id"]).isdigit() else str(raw["id"])),
         name=str(raw["name"]),
         action=str(raw["action"]).strip().lower().replace(" ", "_"),
         instruction=str(raw["instruction"]),
