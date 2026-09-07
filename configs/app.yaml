@@ -2,8 +2,8 @@
 protocol_path: configs/protocol.yaml
 pipeline:
   source: 0
-  model_path: models/exported/best.engine
-  backend: tensorrt
+  model_path: models/exported/best.pt
+  backend: auto
   adaptive_frame_skip: 1
   fps: 30
   evidence_engine: box_handling

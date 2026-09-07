@@ -25,11 +25,13 @@ pytest
 
 ## Local run
 
-Place approved, locally trained weights at the path configured in `configs/app.yaml`. The pipeline never downloads a model. Then run:
+This repository includes the offline inference models in `models/`. The default configuration uses the bundled YOLO weights and MediaPipe gesture model, so no model download is required. Then run:
 
 ```bash
 python scripts/run_pipeline.py --config configs/app.yaml --source path/to/local-video.mp4
 ```
+
+For Windows setup and camera instructions, see [`RUN_INSTRUCTIONS.md`](RUN_INSTRUCTIONS.md).
 
 It records an annotated MP4, writes JSON Lines telemetry, and serves an MJPEG stream at `http://127.0.0.1:8000/stream`. In a second terminal, start the local dashboard:
 
@@ -66,7 +68,8 @@ or inner boxes until the custom model is trained.
 ## Hand gesture recognition
 
 For robust, detailed hand input, this project also supports MediaPipe Gesture
-Recognizer alongside YOLO/ByteTrack. It recognizes `Closed_Fist`, `Open_Palm`,
+Recognizer alongside YOLO/ByteTrack. The official model is bundled at
+`models/gesture_recognizer.task`. It recognizes `Closed_Fist`, `Open_Palm`,
 `Pointing_Up`, `Thumb_Down`, `Thumb_Up`, `Victory`, and `ILoveYou`, and provides
 21 landmarks per hand. Download its official model once during setup:
 
@@ -76,7 +79,7 @@ python scripts/download_gesture_model.py
 python scripts/run_gesture_demo.py --source 0
 ```
 
-The downloaded model is kept out of Git and inference runs locally afterwards.
+The model is included for offline handoff and inference runs locally afterwards.
 Use the landmark information for grasp/contact logic; reserve gesture labels for
 clear deliberate actions such as confirmation or stop signals.
 

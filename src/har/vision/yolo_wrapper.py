@@ -17,12 +17,13 @@ class YoloDetector:
 
     def __init__(self, model_path: str | Path, tracker: str = "bytetrack.yaml", backend: str = "tensorrt", frame_skip: int = 1) -> None:
         requested = Path(model_path)
-        if backend not in {"tensorrt", "onnx"}:
+        self.backend = backend.lower()
+        if self.backend not in {"auto", "tensorrt", "onnx"}:
             raise ValueError("backend must be 'tensorrt' or 'onnx'")
         if frame_skip < 1:
             raise ValueError("frame_skip must be at least one")
         self.model_path = self._resolve_model(requested)
-        self.tracker, self.backend, self.frame_skip = tracker, backend, frame_skip
+        self.tracker, self.frame_skip = tracker, frame_skip
         self._frame_number = 0
         self._previous: list[Detection] = []
         self.model = self._load_model(self.model_path)

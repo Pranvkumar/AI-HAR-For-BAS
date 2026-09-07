@@ -26,6 +26,12 @@ models/
 *.engine
 *.onnx
 
+# Bundled offline inference models
+!models/
+!models/gesture_recognizer.task
+!models/exported/
+!models/exported/best.pt
+
 # Runtime output
 logs/
 recordings/
