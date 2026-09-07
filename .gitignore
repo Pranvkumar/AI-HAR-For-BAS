@@ -37,9 +37,12 @@ logs/
 recordings/
 demo-output*/
 *.mp4
-
-# IDE and operating-system files
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
+logs/
+outputs/
+runs/
+models/objects/
+!models/objects/
+!models/objects/objects.onnx
+!models/objects/objects.names.json
+models/voice/
+models/exported/
