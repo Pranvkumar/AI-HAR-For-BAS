@@ -1,0 +1,13 @@
+{
+  "name": "aegis-ai-har",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint",
+    "audit": "npm --prefix frontend audit"
+  }
+}

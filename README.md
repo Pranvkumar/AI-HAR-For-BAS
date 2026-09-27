@@ -23,6 +23,47 @@ pip install -e .
 pytest
 ```
 
+## Web Operations Console & Mission Control Dashboard
+
+The project features a full-stack Web Operations Console for onboard Human Activity Recognition (HAR) monitoring, deterministic Finite State Machine (FSM) sequence validation, interactive scenario evaluation, grounded protocol guidance, and safety alert dispatch.
+
+### Quick Start (Web Operations Console)
+
+1. **Install Prerequisites**:
+   - **PowerShell**:
+     ```powershell
+     .\INSTALL_WEB.bat
+     ```
+   - **Command Prompt (CMD) / Explorer**:
+     ```cmd
+     INSTALL_WEB.bat
+     ```
+     *(or double-click `INSTALL_WEB.bat`)*
+
+2. **Launch Console & Backend**:
+   - **PowerShell**:
+     ```powershell
+     .\START_WEB_DASHBOARD.bat
+     ```
+   - **Command Prompt (CMD) / Explorer**:
+     ```cmd
+     START_WEB_DASHBOARD.bat
+     ```
+     *(or double-click `START_WEB_DASHBOARD.bat`)*
+
+   Alternatively, launch components independently:
+   - **Backend API & WebSockets**: `.\START_BACKEND.bat` (FastAPI at `http://127.0.0.1:8000`, docs at `/docs`)
+   - **Frontend Console**: `.\START_FRONTEND.bat` (Vite React app at `http://localhost:5173`)
+
+### Operations Modules
+* **Live Monitoring**: Camera feed overlay with bounding boxes and pose tracking, activity confidence gauge, FSM state progress, scenario switcher (Nominal, Low Confidence, Violation), and live alert feed.
+* **Mission Overview**: Station KPI cards, active experiment progress, system operational status, and telemetry overview.
+* **Experiment Catalog**: Multi-experiment procedure workflows, including the official SIH 26174 dual-box handling protocol (`SIH-EXP-26174`).
+* **Alerts & Events**: High-priority safety alert routing with operator acknowledgment workflow.
+* **Grounded Guidance Assistant**: Context-bound procedural assistant drawer driven deterministically by active FSM state packets.
+* **Activity & Audit Logs**: High-frequency timestamped telemetry and step verification logs.
+* **Microgravity Status**: Environmental microgravity metrics, stability indicators, and sensor diagnostics.
+
 ## Local run
 
 This repository includes the offline inference models in `models/`. The default configuration uses the bundled YOLO weights and MediaPipe gesture model, so no model download is required. Then run:
