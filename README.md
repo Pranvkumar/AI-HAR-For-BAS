@@ -72,23 +72,53 @@ flowchart LR
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Armed
+    [*] --> Standby: Initialize Edge Inference
 
-    Armed --> StepValidated: expected evidence + confidence + dwell
+    Standby --> AwaitingAction: Load Experiment Protocol
+    
+    state AwaitingAction {
+        [*] --> EmitPrompt
+        EmitPrompt --> Idle: Trigger TTS Next-Step Prompt
+    }
 
-    StepValidated --> Armed: next step exists
+    AwaitingAction --> ActionInProgress: Target HOI (Hand-Object) Detected
+    AwaitingAction --> SequenceAnomaly: Out-of-Sequence HOI Detected
+    
+    state ActionInProgress {
+        [*] --> AccumulateDwell
+        AccumulateDwell --> TemporalBuffer: Object Visually Occluded
+        TemporalBuffer --> AccumulateDwell: Target Re-acquired (Inside Window)
+        TemporalBuffer --> ActionAborted: Timeout (False Start / Drop)
+        AccumulateDwell --> ValidationSuccess: Spatial Intersection >= Dwell Threshold
+    }
 
-    StepValidated --> Complete: final step
+    ActionInProgress --> StepValidated: Action Confirmed
+    ActionInProgress --> AwaitingAction: Action Aborted
 
-    Armed --> Warning: unknown or out-of-sequence action
+    state StepValidated {
+        [*] --> LogTelemetry
+        LogTelemetry --> AdvanceIndex: Write Structured JSON Log
+    }
 
-    Warning --> Armed: valid expected action
+    StepValidated --> AwaitingAction: Next Step Exists
+    StepValidated --> MissionComplete: Final Step Reached
 
-    Armed --> Blocked: safety-critical step bypassed
+    state SequenceAnomaly {
+        [*] --> VoiceWarning
+        VoiceWarning --> AwaitCorrection: TTS "Warning: Step Skipped"
+    }
 
-    Blocked --> Armed: missed step completed or acknowledged
+    SequenceAnomaly --> AwaitingAction: Expected Action Resumes
+    SequenceAnomaly --> SafetyBlocked: Safety-Critical Violation
 
-    Complete --> [*]
+    state SafetyBlocked {
+        [*] --> SystemHalt
+        SystemHalt --> AwaitOverride: Require Astronaut Voice Override
+    }
+
+    SafetyBlocked --> AwaitingAction: Override Confirmed / Step Fixed
+
+    MissionComplete --> [*]: Export Session Report & Close Stream
 ```
 
 The FSM is pure protocol logic: camera, speech, network, recording, and UI concerns sit outside it. This makes safety behavior unit-testable and prevents a slow client or audio subsystem from blocking inference.
