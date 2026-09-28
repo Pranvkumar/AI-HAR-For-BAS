@@ -189,14 +189,4 @@ npm run build
 
 ---
 
-## 👥 Team
 
-Developed for **Smart India Hackathon 2026** — Problem Statement **SIH26174**.
-
-Add your team members and roles here before publishing the repository.
-
----
-
-## 📜 License
-
-Add your selected license before publishing. If you use MIT, include a `LICENSE` file and update this section accordingly.
