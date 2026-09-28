@@ -6,7 +6,7 @@
 # ---------------------------------------------------------------- CAPTURE ---
 # 0, 1, 2 ... = webcam index.  Or a file path ("datasets/demo.mp4"),
 # or an IP camera URL ("rtsp://192.168.1.50:554/stream").
-video_source: 0
+video_source: 1
 frame_width: 1280
 frame_height: 720
 target_fps: 30

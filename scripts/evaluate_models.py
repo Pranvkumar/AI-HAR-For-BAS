@@ -97,11 +97,22 @@ def evaluate_yolo_model(
         raise FileNotFoundError(f"dataset YAML not found: {data_path}")
 
     model = YOLO(str(model_path))
+    # ONNX Runtime can fail with a device-copy error when Ultralytics receives
+    # a CUDA device but only the CPU execution provider is available.
+    effective_device = device
+    if model_path.suffix.lower() == ".onnx" and str(device).lower() not in {"cpu", "-1"}:
+        try:
+            import onnxruntime as ort
+
+            if "CUDAExecutionProvider" not in ort.get_available_providers():
+                effective_device = "cpu"
+        except ImportError:
+            effective_device = "cpu"
     validation = model.val(
         data=str(data_path),
         imgsz=imgsz,
         batch=batch,
-        device=device,
+        device=effective_device,
         split=split,
         workers=workers,
         plots=False,
@@ -116,7 +127,7 @@ def evaluate_yolo_model(
         "split": split,
         "imgsz": imgsz,
         "batch": batch,
-        "device": device,
+        "device": effective_device,
         "metrics": metrics,
         "speed_ms": _jsonable(getattr(validation, "speed", {})),
     }
@@ -136,6 +147,15 @@ def build_report(
     """Evaluate detector files and describe models without automatic metrics."""
     report: dict[str, Any] = {
         "created_utc": datetime.now(timezone.utc).isoformat(),
+        "evaluation_context": {
+            "dataset_type": "synthetic_red_blue",
+            "metrics_status": "measured",
+            "real_world_metrics_available": False,
+            "interpretation": (
+                "These metrics describe the checked-in synthetic validation set; "
+                "they must not be presented as real-world accuracy."
+            ),
+        },
         "inventory": [describe_model(path) for path in (inventory or [])],
         "evaluated_detectors": [],
         "not_evaluated": [],

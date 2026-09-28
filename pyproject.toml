@@ -30,6 +30,11 @@ dev = [
     "pytest-cov>=5.0.0",
     "pytest-asyncio>=0.23.0",
 ]
+voice = [
+    "SpeechRecognition>=3.10,<4",
+    "faster-whisper>=1.1,<2",
+    "PyAudio>=0.2.14,<0.3",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

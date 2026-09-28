@@ -92,6 +92,61 @@ def _draw_polygon(img, points, colour, closed: bool = False, hover=None) -> None
         cv2.line(img, points[-1], hover, colour, 1, cv2.LINE_AA)
 
 
+def auto_calibrate(config_path: str | None = None, source_override=None) -> int:
+    config = load_config(config_path)
+    protocol = load_protocol(config.protocol_file)
+    if not protocol.zone_names:
+        print("This protocol declares no zones. Add zone fields before auto-calibrating.")
+        return 0
+
+    source = VideoSource(
+        source_override if source_override is not None else config.resolved_source(),
+        width=config.frame_width,
+        height=config.frame_height,
+        fps=config.target_fps,
+        flip_horizontal=config.flip_horizontal,
+        loop_file=True,
+    )
+    if not source.start():
+        print(f"ERROR: {source.error}")
+        return 2
+
+    tracker = RackTracker(
+        enabled=config.rack_marker_enabled,
+        dictionary=config.rack_marker_dict,
+        marker_ids=config.rack_marker_ids,
+    )
+    rack = None
+    try:
+        for _ in range(90):
+            frame = source.read(timeout=0.2)
+            if frame is None:
+                continue
+            candidate = tracker.update(frame.image)
+            if candidate.source.startswith("aruco"):
+                rack = candidate
+                break
+    finally:
+        source.stop()
+
+    if rack is None or rack.corners_px is None:
+        print("ERROR: ArUco rack markers were not detected. Show IDs 0, 1, 2, 3 to the camera.")
+        return 2
+
+    quad_path = config.zones_file.with_name("rack_quad.json")
+    quad_path.parent.mkdir(parents=True, exist_ok=True)
+    quad_path.write_text(
+        json.dumps({"quad": rack.corners_px.tolist(), "source": "aruco-auto"}, indent=2),
+        encoding="utf-8",
+    )
+    zones = ZoneSet.default_grid(protocol.zone_names)
+    zones_path = zones.save(config.zones_file)
+    print(f"Auto rack calibration saved -> {quad_path}")
+    print(f"Approximate zones saved -> {zones_path}")
+    print("For accurate physical zones, run CALIBRATE_ZONES.bat without --auto.")
+    return 0
+
+
 def calibrate(config_path: str | None = None, source_override=None) -> int:
     if cv2 is None:
         print("ERROR: OpenCV is not installed. Run INSTALL.bat first.")
@@ -270,6 +325,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Calibrate rack frame and interaction zones")
     parser.add_argument("--config", default=None)
     parser.add_argument("--source", default=None, help="override video source")
+    parser.add_argument("--auto", action="store_true", help="detect ArUco rack and create approximate zones")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -277,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
     if source is not None and str(source).isdigit():
         source = int(source)
     try:
+        if args.auto:
+            return auto_calibrate(args.config, source)
         return calibrate(args.config, source)
     except KeyboardInterrupt:
         print("\nCalibration cancelled.")
