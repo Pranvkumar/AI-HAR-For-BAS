@@ -1,179 +1,202 @@
-# AI HAR for Astronaut BAS Experiments
+<div align="center">
 
-This repository implements a local Human Activity Recognition prototype for SIH
-2026 Problem Statement 26174: **AI Human Activity Recognition for On-board BAS
-Experiments**. It supports astronauts carrying out predefined procedures in
-microgravity by validating a sequence of visible actions without continuous
-ground communication.
+# 🛰️ AEGIS — BAS Onboard AI Assistant
 
-## Hardware target
+**An edge-ready, real-time AI human-activity recognition system for safe, deterministic BAS experiment operations.**
 
-The demonstration target is a Lenovo Legion laptop with an NVIDIA RTX 4060, 8 GB of VRAM, and NVENC. The design will remain portable to future space-grade edge hardware and must function offline.
+[![Smart India Hackathon 2026](https://img.shields.io/badge/SIH-2026-orange?style=for-the-badge)](https://www.sih.gov.in/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
+[![Offline First](https://img.shields.io/badge/Operation-Offline_First-success?style=for-the-badge)](#offline-and-safety)
 
-## Project orientation
+[Features](#-key-features) • [Architecture](#-system-architecture) • [Getting Started](#-getting-started) • [API](#-api-reference) • [Testing](#-testing)
 
-The `src/har/` package is organized around ingestion, vision, hand-object fusion, protocol state management, configuration, and independent output sinks. The YAML files in `configs/` contain the deployment defaults and must be customized with the approved experiment procedure and local model path.
+</div>
 
-## Tests
+---
 
-Create a Python 3.10+ virtual environment, install the project dependencies, then run the test suite:
+## 📌 Project Overview
 
-```bash
-pip install -e .
-pytest
+**AEGIS** is an onboard assistant for Bharatiya Antariksh Station (BAS) experiments, built for Smart India Hackathon 2026 problem statement **SIH26174**. It observes experiment procedures using a local camera, identifies hands and experiment objects, validates every action against an approved finite-state protocol, and presents real-time guidance through a mission-control dashboard.
+
+The system runs locally: its vision models, safety validation, voice alerts, telemetry, and persistence do not require cloud AI services or runtime model downloads.
+
+---
+
+## ✨ Key Features
+
+- **🎥 Offline computer vision:** OpenCV capture, MediaPipe hand/pose landmarks, and local YOLO object detection.
+- **🧠 Interaction reasoning:** Tracks hand-to-object contact, containment, removal, return, and dwell-time evidence.
+- **⚡ Deterministic protocol FSM:** YAML-defined, order-sensitive experiment validation with safety violations and recovery handling.
+- **🛡️ Aerospace safety layer:** Hazard monitoring for glare, free-object drift, immobility, environmental conditions, and hardware health.
+- **🔊 Grounded operator guidance:** Non-blocking, local text-to-speech alerts constrained by live protocol state.
+- **📡 Real-time telemetry:** FastAPI REST endpoints and WebSocket telemetry for live mission operations.
+- **📊 Mission-control dashboard:** React, Vite, and Tailwind interface with video overlays, alerts, audit replay, digital twin, and protocol progress.
+- **🗃️ Auditable persistence:** SQLite by default, structured logs, recordings, and a cryptographic Merkle ledger service.
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+flowchart TD
+    Camera[Camera / Local Video Feed] --> Capture[OpenCV Frame Capture]
+    Capture --> Vision[Vision Pipeline]
+    Vision --> Hands[MediaPipe Hands and Pose]
+    Vision --> Objects[Local YOLO Object Detection]
+    Hands --> Fusion[Hand/Object Fusion and Evidence]
+    Objects --> Tracking[Object Tracking and Containment]
+    Tracking --> Fusion
+    Fusion --> FSM[Deterministic YAML Protocol FSM]
+    FSM --> Events[Typed Protocol Events]
+    Events --> Voice[Offline Voice Guidance]
+    Events --> Audit[Logs, Recordings, SQLite and Merkle Ledger]
+    FSM --> Adapter[BAS Pipeline Adapter]
+    Adapter --> API[FastAPI REST API]
+    Adapter --> WS[WebSocket Telemetry]
+    API --> Dashboard[React Mission Control Dashboard]
+    WS --> Dashboard
+    Vision --> Stream[Annotated Frame Stream]
+    Stream --> Dashboard
 ```
 
-## Web Operations Console & Mission Control Dashboard
+### Technical workflow
 
-The project features a full-stack Web Operations Console for onboard Human Activity Recognition (HAR) monitoring, deterministic Finite State Machine (FSM) sequence validation, interactive scenario evaluation, grounded protocol guidance, and safety alert dispatch.
+1. **Perception:** A local camera or video source supplies frames to pose, hand, and object perception.
+2. **Evidence fusion:** Spatial relationships are converted into reliable interaction evidence.
+3. **State evaluation:** The FSM compares that evidence with the approved experiment sequence.
+4. **Response and audit:** AEGIS emits visual/voice guidance, safety alerts, telemetry, recordings, and verifiable event history.
 
-### Quick Start (Web Operations Console)
+---
 
-1. **Install Prerequisites**:
-   - **PowerShell**:
-     ```powershell
-     .\INSTALL_WEB.bat
-     ```
-   - **Command Prompt (CMD) / Explorer**:
-     ```cmd
-     INSTALL_WEB.bat
-     ```
-     *(or double-click `INSTALL_WEB.bat`)*
+## 🚀 Getting Started
 
-2. **Launch Console & Backend**:
-   - **PowerShell**:
-     ```powershell
-     .\START_WEB_DASHBOARD.bat
-     ```
-   - **Command Prompt (CMD) / Explorer**:
-     ```cmd
-     START_WEB_DASHBOARD.bat
-     ```
-     *(or double-click `START_WEB_DASHBOARD.bat`)*
+### Prerequisites
 
-   Alternatively, launch components independently:
-   - **Backend API & WebSockets**: `.\START_BACKEND.bat` (FastAPI at `http://127.0.0.1:8000`, docs at `/docs`)
-   - **Frontend Console**: `.\START_FRONTEND.bat` (Vite React app at `http://localhost:5173`)
+- Python 3.10+
+- Node.js 18+ and npm
+- A local camera for live monitoring, or a local video file for replay
 
-### Operations Modules
-* **Live Monitoring**: Camera feed overlay with bounding boxes and pose tracking, activity confidence gauge, FSM state progress, scenario switcher (Nominal, Low Confidence, Violation), and live alert feed.
-* **Mission Overview**: Station KPI cards, active experiment progress, system operational status, and telemetry overview.
-* **Experiment Catalog**: Multi-experiment procedure workflows, including the official SIH 26174 dual-box handling protocol (`SIH-EXP-26174`).
-* **Alerts & Events**: High-priority safety alert routing with operator acknowledgment workflow.
-* **Grounded Guidance Assistant**: Context-bound procedural assistant drawer driven deterministically by active FSM state packets.
-* **Activity & Audit Logs**: High-frequency timestamped telemetry and step verification logs.
-* **Microgravity Status**: Environmental microgravity metrics, stability indicators, and sensor diagnostics.
+### 1️⃣ Install dependencies
 
-## Local run
+On Windows, from the repository root:
 
-This repository includes the offline inference models in `models/`. The default configuration uses the bundled YOLO weights and MediaPipe gesture model, so no model download is required. Then run:
-
-```bash
-python scripts/run_pipeline.py --config configs/app.yaml --source path/to/local-video.mp4
+```powershell
+.\INSTALL_WEB.bat
 ```
 
-For Windows setup and camera instructions, see [`RUN_INSTRUCTIONS.md`](RUN_INSTRUCTIONS.md).
+Or install the components manually:
 
-It records an annotated MP4, writes JSON Lines telemetry, and serves an MJPEG stream at `http://127.0.0.1:8000/stream`. In a second terminal, start the local dashboard:
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 
-```bash
-streamlit run src/har/outputs/gui/dashboard.py
+cd frontend
+npm install
 ```
 
-## Immediate offline demo
+### 2️⃣ Launch the operations console
 
-Run the complete local output and protocol path without a camera, model weights, or
-network access:
+```powershell
+.\START_WEB_DASHBOARD.bat
+```
 
-```bash
+| Service | URL |
+| --- | --- |
+| Mission-control dashboard | `http://localhost:5173` |
+| FastAPI backend | `http://127.0.0.1:8000` |
+| Interactive API documentation | `http://127.0.0.1:8000/docs` |
+| Health check | `http://127.0.0.1:8000/health` |
+
+To run services separately, use `.\START_BACKEND.bat` and `.\START_FRONTEND.bat`.
+
+### 3️⃣ Run the computer-vision pipeline
+
+```powershell
+$env:PYTHONPATH = "$PWD\src;$PWD;$PWD\backend"
+python scripts/run_pipeline.py --config configs/app.yaml --source 0
+```
+
+For a camera-free synthetic protocol demonstration:
+
+```powershell
 python scripts/run_sih_demo.py
 ```
 
-This creates `demo-output/har-demo.mp4` and a JSONL telemetry file using a clearly
-labelled synthetic protocol. It is a technical demonstration only, not an approved
-astronaut procedure.
+---
 
-## ByteTrack smoke test
+## 🧪 Demo Scenarios
 
-The vision layer uses Ultralytics' built-in ByteTrack support. Test it with a
-local stock YOLO model and a local video file:
+Use **Live Monitoring** in the dashboard to select an experiment and start a session. The console supports nominal, low-confidence, and violation scenarios, enabling demonstrations of live vision overlays, protocol step progression, grounded guidance, safety alerts, and auditable telemetry.
 
-```bash
-python scripts/run_bytetrack.py --model path/to/yolo11n.pt --source path/to/video.mp4
+---
+
+## ⚙️ Configuration
+
+The main runtime configuration is [`configs/app.yaml`](configs/app.yaml). Protocol definitions are in [`configs/`](configs/), including the default visible-box procedure in [`configs/protocol.yaml`](configs/protocol.yaml).
+
+| Setting | Purpose |
+| --- | --- |
+| `video_source` | Camera index, local video path, or stream URL |
+| `frame_width`, `frame_height`, `target_fps` | Capture dimensions and timing |
+| `objects_model_path` | Local object-detector model |
+| `voice_enabled` | Enables offline voice alerts |
+| `record_enabled` | Saves annotated recordings locally |
+| `stream_enabled` | Enables the local MJPEG stream |
+| `protocol_path` | YAML procedure evaluated by the FSM |
+
+The backend reads optional environment variables from `.env`, including `DATABASE_URL`, `DEMO_MODE`, and `CONFIDENCE_THRESHOLD`. SQLite is used by default; PostgreSQL can be configured for deployment.
+
+---
+
+## 🔌 API Reference
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Returns service health |
+| `GET` | `/api/v1/dashboard` | Returns mission-control summary data |
+| `GET` | `/api/v1/experiments` | Returns the experiment catalog |
+| `POST` | `/api/v1/monitoring/start` | Starts a monitoring session |
+| `POST` | `/api/v1/monitoring/stop/{id}` | Stops a monitoring session |
+| `GET` | `/api/v1/monitoring/stream` | Serves the local MJPEG camera stream |
+| `POST` | `/api/v1/assistant/chat` | Sends a state-grounded assistant request |
+| `WS` | `/ws/monitoring` | Streams live monitoring telemetry |
+
+---
+
+## 🧪 Testing
+
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+python -m pytest tests/test_fusion_and_fsm.py tests/test_sih_box_protocol.py -q
+
+cd frontend
+npm run typecheck
+npm run build
 ```
 
-This writes `recordings/bytetrack/tracked.mp4` with object IDs. A stock model
-validates tracking only; it cannot recognize the project-specific outer container
-or inner boxes until the custom model is trained.
+---
 
-## Hand gesture recognition
+## 🔒 Offline and Safety
 
-For robust, detailed hand input, this project also supports MediaPipe Gesture
-Recognizer alongside YOLO/ByteTrack. The official model is bundled at
-`models/gesture_recognizer.task`. It recognizes `Closed_Fist`, `Open_Palm`,
-`Pointing_Up`, `Thumb_Down`, `Thumb_Up`, `Victory`, and `ILoveYou`, and provides
-21 landmarks per hand. Download its official model once during setup:
+- All inference assets are local; the runtime does not download models or call external AI APIs.
+- The protocol FSM is the authority for sequence progress and safety violations.
+- Voice, recording, telemetry, and streaming are isolated from the frame-capture path.
+- Camera tests and demonstrations can use synthetic or recorded data; a live camera is not required for validation.
+- The dashboard displays operational truth from deterministic evidence rather than unrestricted model output.
 
-```bash
-python -m pip install mediapipe
-python scripts/download_gesture_model.py
-python scripts/run_gesture_demo.py --source 0
-```
+---
 
-The model is included for offline handoff and inference runs locally afterwards.
-Use the landmark information for grasp/contact logic; reserve gesture labels for
-clear deliberate actions such as confirmation or stop signals.
+## 👥 Team
 
-## SIH visible-box baseline
+Developed for **Smart India Hackathon 2026** — Problem Statement **SIH26174**.
 
-The available SIH statement specifies a synthetic sample experiment with an
-outer box containing a red inner box and a second coloured inner box. The
-official text visible to us does not show the second colour or full sequence, so
-the active baseline uses `second_colored_box` rather than guessing it.
+Add your team members and roles here before publishing the repository.
 
-It validates this conservative procedure entirely through relative observations:
+---
 
-1. Retrieve the red box from the outer container.
-2. Retrieve the second coloured box.
-3. Return the red box.
-4. Return the second coloured box.
+## 📜 License
 
-The classes, sequence, debounce settings, and safety handling are all in
-`configs/protocol.yaml`; edit the YAML once ISRO/SIH publishes the remaining
-details. The separate biological-fluid mock is retained only as a technical
-reference in `configs/mock_biological_fluid_protocol.yaml`.
-
-## Training preparation
-
-The active SIH box dataset is ready in `data/sih_box_experiment/`, with
-`outer_container`, `red_box`, `second_colored_box`, and `astronaut_hand`
-classes. Capture local source images with:
-
-```bash
-python scripts/capture_dataset.py --class-name red_box
-```
-
-Capture each class from varied angles, distances, lighting, and occlusion. Then
-annotate every image with its bounding boxes in a local annotation tool, saving YOLO
-`.txt` labels under the matching `labels/train` or `labels/val` directory. Use
-`scripts/augment_check.py` to verify full-orientation augmentation and export a
-trained local `best.pt` with `scripts/export_engine.py`.
-
-### Collecting friends' photos
-
-Share `scripts/contribute_images.py` with contributors. They place photos of one
-class in a folder and run, for example:
-
-```bash
-python contribute_images.py --class-name red_box --input my-photos --contributor Alice --output alice-red-boxes.zip
-```
-
-They send you the resulting ZIP. Import it without extracting untrusted files:
-
-```bash
-python scripts/import_contributions.py alice-vials.zip
-```
-
-The images arrive in `data/incoming_annotations/`; they must be annotated before
-they can be used to train YOLO. Contributors should only send images they created
-or have permission to share.
+Add your selected license before publishing. If you use MIT, include a `LICENSE` file and update this section accordingly.
