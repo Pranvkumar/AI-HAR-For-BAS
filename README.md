@@ -73,13 +73,21 @@ flowchart LR
 ```mermaid
 stateDiagram-v2
     [*] --> Armed
+
     Armed --> StepValidated: expected evidence + confidence + dwell
+
     StepValidated --> Armed: next step exists
+
     StepValidated --> Complete: final step
+
     Armed --> Warning: unknown or out-of-sequence action
+
     Warning --> Armed: valid expected action
+
     Armed --> Blocked: safety-critical step bypassed
+
     Blocked --> Armed: missed step completed or acknowledged
+
     Complete --> [*]
 ```
 
